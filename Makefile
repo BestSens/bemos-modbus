@@ -10,7 +10,7 @@ BIN = bemos_modbus
 $(BIN): $(OBJ)
 	$(CXX) $(CPPFLAGS) -o $@ $(OBJ) $(LDFLAGS)
 
-bemos_modbus.o: bemos_modbus.cpp
+bemos_modbus.o: bemos_modbus.cpp version.hpp
 	$(CXX) $(CPPFLAGS) -c $<
 
 clean:
