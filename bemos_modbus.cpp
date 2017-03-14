@@ -47,7 +47,7 @@ int main(int argc, char **argv){
     int c;
     int daemon = 0;
     int long_index = 0;
-    int port = 1502;
+    int port = 502;
 
     setlogmask(LOG_UPTO (LOG_INFO));
     openlog("bemos-modbus", LOG_CONS | LOG_NDELAY | LOG_PERROR | LOG_PID, LOG_LOCAL1);
@@ -165,9 +165,9 @@ int main(int argc, char **argv){
         /* process is running as root, drop privileges */
         syslog(LOG_INFO, "running as root, dropping privileges");
 
-        if (setgid(GROUPID) != 0)
+        if(setgid(GROUPID) != 0)
             syslog(LOG_ERR, "setgid: Unable to drop group privileges: %s", strerror(errno));
-        if (setuid(USERID) != 0)
+        if(setuid(USERID) != 0)
             syslog(LOG_ERR, "setuid: Unable to drop user privileges: %s", strerror(errno));
     }
 
