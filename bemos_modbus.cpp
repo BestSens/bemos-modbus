@@ -186,84 +186,90 @@ int main(int argc, char **argv){
 
     syslog(LOG_INFO, "listening on port %d", port);
 
-    modbus_tcp_accept(ctx, &s);
-
-    syslog(LOG_DEBUG, "client connected");
-
     while(1) {
-        do {
-            rc = modbus_receive(ctx, query);
-            /* Filtered queries return 0 */
-        } while (rc == 0);
+        modbus_tcp_accept(ctx, &s);
 
-        if (rc == -1 && errno != EMBBADCRC) {
-            /* Quit */
-            break;
+        syslog(LOG_DEBUG, "client connected");
+
+        while(1) {
+            do {
+                rc = modbus_receive(ctx, query);
+                /* Filtered queries return 0 */
+            } while (rc == 0);
+
+            if (rc == -1 && errno != EMBBADCRC) {
+                /* Quit */
+                break;
+            }
+
+            /*
+             * get channel_data
+             */
+            json channel_data;
+
+            if(socket->send_command("channel_data", channel_data)) {
+                syslog(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
+
+                auto addValue = [&channel_data, &mb_mapping](const std::string& value, uint16_t address) {
+                    uint16_t response = 0;
+
+                    try {
+                        response = channel_data["payload"].value(value, 0);
+                    } catch(...) {
+                        response = 0;
+                    }
+
+                    mb_mapping->tab_input_registers[address] = response;
+                };
+
+                auto addValue32 = [&channel_data, &mb_mapping](const std::string& value, uint16_t address_start) {
+                    uint32_t response = 0;
+
+                    try {
+                        response = channel_data["payload"].value(value, 0);
+                    } catch(...) {
+                        response = 0;
+                    }
+
+                    mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
+                    mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
+                };
+
+                auto addFloat = [&channel_data, &mb_mapping](const std::string& value, uint16_t address_start) {
+                    float response = 0.0;
+
+                    try {
+                        response = channel_data["payload"].value(value, 0.0);
+                    } catch(...) {
+                        response = 0.0;
+                    }
+
+                    uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
+
+                    mb_mapping->tab_input_registers[address_start] = buff[1];
+                    mb_mapping->tab_input_registers[address_start+1] = buff[0];
+                };
+
+                addValue32("date", 0x00);
+                addFloat("cage speed", 0x02);
+                addFloat("shaft speed", 0x04);
+                addFloat("temp mean", 0x06);
+                addFloat("stoerlevel", 0x08);
+                addFloat("mean rt", 0x0A);
+                addFloat("mean amp", 0x0C);
+                addFloat("rms rt", 0x0E);
+                addFloat("rms amp", 0x10);
+                addFloat("temp0", 0x12);
+                addFloat("temp1", 0x14);
+            }
+
+            rc = modbus_reply(ctx, query, rc, mb_mapping);
+            if (rc == -1) {
+                break;
+            }
         }
 
-        /*
-         * get channel_data
-         */
-        json channel_data;
-
-        if(socket->send_command("channel_data", channel_data)) {
-            syslog(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
-
-            auto addValue = [&channel_data, &mb_mapping](const std::string& value, uint16_t address) {
-                uint16_t response = 0;
-
-                try {
-                    response = channel_data["payload"].value(value, 0);
-                } catch(...) {
-                    response = 0;
-                }
-
-                mb_mapping->tab_input_registers[address] = response;
-            };
-
-            auto addValue32 = [&channel_data, &mb_mapping](const std::string& value, uint16_t address_start) {
-                uint32_t response = 0;
-
-                try {
-                    response = channel_data["payload"].value(value, 0);
-                } catch(...) {
-                    response = 0;
-                }
-
-                mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
-                mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
-            };
-
-            auto addFloat = [&channel_data, &mb_mapping](const std::string& value, uint16_t address_start) {
-                float response = 0.0;
-
-                try {
-                    response = channel_data["payload"].value(value, 0.0);
-                } catch(...) {
-                    response = 0.0;
-                }
-
-                uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
-
-                mb_mapping->tab_input_registers[address_start] = buff[1];
-                mb_mapping->tab_input_registers[address_start+1] = buff[0];
-            };
-
-            addValue32("date", 0x00);
-            addFloat("cage speed", 0x02);
-            addFloat("shaft speed", 0x04);
-            addFloat("temp mean", 0x06);
-            addFloat("stoerlevel", 0x08);
-            addFloat("mean rt", 0x0A);
-            addFloat("mean amp", 0x0C);
-            addFloat("rms rt", 0x0E);
-            addFloat("rms amp", 0x10);
-        }
-
-        rc = modbus_reply(ctx, query, rc, mb_mapping);
-        if (rc == -1) {
-            break;
-        }
+        syslog(LOG_DEBUG, "client disconnected");
     }
 
     close(s);
