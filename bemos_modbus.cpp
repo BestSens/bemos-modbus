@@ -39,12 +39,12 @@ int main(int argc, char **argv){
     uint8_t *query;
     modbus_t *ctx;
     int s = -1;
-    int i = 0;
     int rc;
 
     int c;
     int daemon = 0;
     int long_index = 0;
+    int port = 1502;
 
     setlogmask(LOG_UPTO (LOG_INFO));
     openlog("bemos-modbus", LOG_CONS | LOG_NDELAY | LOG_PERROR | LOG_PID, LOG_LOCAL1);
@@ -62,6 +62,7 @@ int main(int argc, char **argv){
         {"port",				required_argument,	0,	'p'},
         {"username",            required_argument,  0,  'u'},
         {"password",            required_argument,  0,  'l'},
+        {"listen",              required_argument,  0,  'o'},
         {0, 0, 0, 0}
     };
 
@@ -98,6 +99,11 @@ int main(int argc, char **argv){
                     password = netHelper::sha512(optarg);
 
                 break;
+            case 'o':
+                if(optarg)
+                    port = (int)strtol(optarg, NULL, 0);
+
+                break;
             case '?':
                 syslog(LOG_ERR, "command not found or argument required");
         }
@@ -115,7 +121,7 @@ int main(int argc, char **argv){
      */
     if(socket->connect()) {
         syslog(LOG_CRIT, "connection failed");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     /*
@@ -123,20 +129,19 @@ int main(int argc, char **argv){
      */
     if(!socket->login(username, password)) {
         syslog(LOG_CRIT, "login failed");
-        return 1;
+        return EXIT_FAILURE;
     }
 
-    ctx = modbus_new_tcp("127.0.0.1", 1502);
+    ctx = modbus_new_tcp("127.0.0.1", port);
     query = (uint8_t*)malloc(MODBUS_TCP_MAX_ADU_LENGTH);
     int header_length = modbus_get_header_length(ctx);
 
     mb_mapping = modbus_mapping_new(0, 0, 0, 50);
 
     if (mb_mapping == NULL) {
-        fprintf(stderr, "Failed to allocate the mapping: %s\n",
-                modbus_strerror(errno));
+        syslog(LOG_CRIT, "Failed to allocate the mapping: %s", modbus_strerror(errno));
         modbus_free(ctx);
-        return -1;
+        return EXIT_FAILURE;
     }
 
     /* Deamonize */
@@ -167,9 +172,20 @@ int main(int argc, char **argv){
         close(STDERR_FILENO);
     }
 
-    syslog(LOG_DEBUG, "waiting for connection");
-
     s = modbus_tcp_listen(ctx, 1);
+
+    if(s == -1) {
+        syslog(LOG_CRIT, "cannot reserve port %d, exiting", port);
+        modbus_mapping_free(mb_mapping);
+        free(query);
+        /* For RTU */
+        modbus_close(ctx);
+        modbus_free(ctx);
+        return EXIT_FAILURE;
+    }
+
+    syslog(LOG_INFO, "listening on port %d", port);
+
     modbus_tcp_accept(ctx, &s);
 
     syslog(LOG_DEBUG, "client connected");
@@ -193,33 +209,55 @@ int main(int argc, char **argv){
         if(socket->send_command("channel_data", channel_data)) {
             syslog(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
 
-            uint32_t date = 0;
-            try {
-                date = (uint32_t)channel_data["payload"].value("date", 0);
-            } catch(...) {
-                date = 0;
-            }
+            auto addValue = [&channel_data, &mb_mapping](const std::string& value, uint16_t address) {
+                uint16_t response = 0;
 
-            mb_mapping->tab_input_registers[0x00] = (uint16_t)(date >> 16);
-            mb_mapping->tab_input_registers[0x01] = (uint16_t)date;
+                try {
+                    response = channel_data["payload"].value(value, 0);
+                } catch(...) {
+                    response = 0;
+                }
 
-            try {
-                mb_mapping->tab_input_registers[0x02] = (uint16_t)channel_data["payload"].value("cage speed", 0);
-            } catch(...) {
-                mb_mapping->tab_input_registers[0x02] = 0;
-            }
+                mb_mapping->tab_input_registers[address] = response;
+            };
 
-            try {
-                mb_mapping->tab_input_registers[0x03] = (uint16_t)channel_data["payload"].value("shaft speed", 0);
-            } catch(...) {
-                mb_mapping->tab_input_registers[0x03] = 0;
-            }
+            auto addValue32 = [&channel_data, &mb_mapping](const std::string& value, uint16_t address_start) {
+                uint32_t response = 0;
 
-            try {
-                mb_mapping->tab_input_registers[0x04] = (uint16_t)channel_data["payload"].value("temp mean", 0);
-            } catch(...) {
-                mb_mapping->tab_input_registers[0x04] = 0;
-            }
+                try {
+                    response = channel_data["payload"].value(value, 0);
+                } catch(...) {
+                    response = 0;
+                }
+
+                mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
+                mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
+            };
+
+            auto addFloat = [&channel_data, &mb_mapping](const std::string& value, uint16_t address_start) {
+                float response = 0.0;
+
+                try {
+                    response = channel_data["payload"].value(value, 0.0);
+                } catch(...) {
+                    response = 0.0;
+                }
+
+                uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
+
+                mb_mapping->tab_input_registers[address_start] = buff[1];
+                mb_mapping->tab_input_registers[address_start+1] = buff[0];
+            };
+
+            addValue32("date", 0x00);
+            addFloat("cage speed", 0x02);
+            addFloat("shaft speed", 0x04);
+            addFloat("temp mean", 0x06);
+            addFloat("stoerlevel", 0x08);
+            addFloat("mean rt", 0x0A);
+            addFloat("mean amp", 0x0C);
+            addFloat("rms rt", 0x0E);
+            addFloat("rms amp", 0x10);
         }
 
         rc = modbus_reply(ctx, query, rc, mb_mapping);
@@ -237,5 +275,5 @@ int main(int argc, char **argv){
 
     syslog(LOG_DEBUG, "exited");
 
-    return 0;
+    return EXIT_SUCCESS;
 }
