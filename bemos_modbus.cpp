@@ -134,9 +134,9 @@ int main(int argc, char **argv){
 
     ctx = modbus_new_tcp("127.0.0.1", port);
     query = (uint8_t*)malloc(MODBUS_TCP_MAX_ADU_LENGTH);
-    int header_length = modbus_get_header_length(ctx);
+    //int header_length = modbus_get_header_length(ctx);
 
-    mb_mapping = modbus_mapping_new(0, 0, 0, 50);
+    mb_mapping = modbus_mapping_new(0, 0, 10, 50);
 
     if (mb_mapping == NULL) {
         syslog(LOG_CRIT, "Failed to allocate the mapping: %s", modbus_strerror(errno));
@@ -190,6 +190,14 @@ int main(int argc, char **argv){
         modbus_tcp_accept(ctx, &s);
 
         syslog(LOG_DEBUG, "client connected");
+
+        /*
+         * register "external_data" algo
+         */
+        json j;
+        socket->send_command("register_analysis", j, {{"name", "external_data"}});
+
+        std::cout << std::setw(2) << j << std::endl;
 
         while(1) {
             do {
@@ -262,6 +270,18 @@ int main(int argc, char **argv){
                 addFloat("temp0", 0x12);
                 addFloat("temp1", 0x14);
             }
+            uint16_t external_shaft_speed = mb_mapping->tab_registers[0];
+
+            json payload = {
+                {"name", "external_data"},
+                {"data", {
+                    {"shaft_speed", external_shaft_speed}
+                }}
+            };
+
+            syslog(LOG_DEBUG, "updating shaft speed %s", payload.dump(2).c_str());
+
+            socket->send_command("new_data", j, payload);
 
             rc = modbus_reply(ctx, query, rc, mb_mapping);
             if (rc == -1) {
