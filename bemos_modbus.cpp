@@ -27,6 +27,9 @@ using namespace bestsens;
 #define LOGIN_USER "bemos-analysis"
 #define LOGIN_HASH "82e324d4dac1dacf019e498d6045835b3998def1c1cece4abf94a3743f149e208f30276b3275fdbb8c60dea4a042c490d73168d41cf70f9cdc3e1e62eb43f8e4"
 
+#define USERID 1200
+#define GROUPID 880
+
 int main(int argc, char **argv){
     for(int i = 1; i<argc; i++) {
         if(!strcmp(argv[i], "--version")) {
@@ -144,6 +147,30 @@ int main(int argc, char **argv){
         return EXIT_FAILURE;
     }
 
+    s = modbus_tcp_listen(ctx, 1);
+
+    if(s == -1) {
+        syslog(LOG_CRIT, "cannot reserve port %d, exiting", port);
+        modbus_mapping_free(mb_mapping);
+        free(query);
+        /* For RTU */
+        modbus_close(ctx);
+        modbus_free(ctx);
+        return EXIT_FAILURE;
+    }
+
+    syslog(LOG_INFO, "listening on port %d", port);
+
+    if(getuid() == 0) {
+        /* process is running as root, drop privileges */
+        syslog(LOG_INFO, "running as root, dropping privileges");
+
+        if (setgid(GROUPID) != 0)
+            syslog(LOG_ERR, "setgid: Unable to drop group privileges: %s", strerror(errno));
+        if (setuid(USERID) != 0)
+            syslog(LOG_ERR, "setuid: Unable to drop user privileges: %s", strerror(errno));
+    }
+
     /* Deamonize */
     if(daemon == 1) {
         pid_t pid, sid;
@@ -171,20 +198,6 @@ int main(int argc, char **argv){
         close(STDOUT_FILENO);
         close(STDERR_FILENO);
     }
-
-    s = modbus_tcp_listen(ctx, 1);
-
-    if(s == -1) {
-        syslog(LOG_CRIT, "cannot reserve port %d, exiting", port);
-        modbus_mapping_free(mb_mapping);
-        free(query);
-        /* For RTU */
-        modbus_close(ctx);
-        modbus_free(ctx);
-        return EXIT_FAILURE;
-    }
-
-    syslog(LOG_INFO, "listening on port %d", port);
 
     while(1) {
         modbus_tcp_accept(ctx, &s);
