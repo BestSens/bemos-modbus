@@ -282,6 +282,7 @@ int main(int argc, char **argv){
                 addFloat("rms amp", 0x10);
                 addFloat("temp0", 0x12);
                 addFloat("temp1", 0x14);
+                addFloat("druckwinkel", 0x16);
             }
             uint16_t external_shaft_speed = mb_mapping->tab_registers[0];
 
