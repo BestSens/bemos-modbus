@@ -1,2 +1,4 @@
 *.o
 bemos_modbus
+gitrev.hpp
+gitrev.hpp.md5

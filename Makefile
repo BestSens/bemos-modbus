@@ -10,8 +10,17 @@ BIN = bemos_modbus
 $(BIN): $(OBJ)
 	$(CXX) $(CPPFLAGS) -o $@ $(OBJ) $(LDFLAGS)
 
-bemos_modbus.o: bemos_modbus.cpp version.hpp
+gitrev.hpp: FORCE
+	@echo -n "#define APP_VERSION_GITREV " > $@
+	@git rev-parse --verify --short=8 HEAD >> $@
+
+FORCE:
+
+gitrev.hpp.md5: gitrev.hpp
+	@md5sum $< | cmp -s $@ -; if test $$? -ne 0; then md5sum $< > $@; fi
+
+bemos_modbus.o: bemos_modbus.cpp version.hpp gitrev.hpp.md5
 	$(CXX) $(CPPFLAGS) -c $<
 
 clean:
-	rm -f $(BIN) $(OBJ)
+	rm -f $(BIN) $(OBJ) gitrev.hpp gitrev.hpp.md5
