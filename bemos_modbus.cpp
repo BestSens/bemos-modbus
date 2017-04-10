@@ -115,6 +115,12 @@ int main(int argc, char **argv){
     syslog(LOG_INFO, "starting bemos-modbus %s", APP_VERSION);
 
     /*
+     * Test IEEE 754
+     */
+    if(!std::numeric_limits<float>::is_iec559)
+        syslog(LOG_WARNING, "application wasn't compiled with IEEE 754 standard, floating point values may be out of standard");
+
+    /*
      * open socket
      */
     bestsens::jsonNetHelper * socket = new bestsens::jsonNetHelper(conn_target, conn_port);
