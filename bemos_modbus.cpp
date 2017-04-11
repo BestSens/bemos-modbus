@@ -219,6 +219,48 @@ int main(int argc, char **argv){
         std::cout << std::setw(2) << j << std::endl;
 
         while(1) {
+            auto addValue = [&mb_mapping](uint16_t address, const json& source, const std::string& value) {
+                uint16_t response = 0;
+
+                try {
+                    response = source["payload"].value(value, 0);
+                } catch(...) {
+                    response = 0;
+                }
+
+                mb_mapping->tab_input_registers[address] = htons(response);
+            };
+
+            auto addValue32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& value) {
+                uint32_t response = 0;
+
+                try {
+                    response = source["payload"].value(value, 0);
+                } catch(...) {
+                    response = 0;
+                }
+
+                response = htonl(response);
+
+                mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
+                mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
+            };
+
+            auto addFloat = [&mb_mapping](uint16_t address_start, const json& source, const std::string& value) {
+                float response = 0.0;
+
+                try {
+                    response = source["payload"].value(value, 0.0);
+                } catch(...) {
+                    response = 0.0;
+                }
+
+                uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
+
+                mb_mapping->tab_input_registers[address_start] = htons(buff[1]);
+                mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
+            };
+
             do {
                 rc = modbus_receive(ctx, query);
                 /* Filtered queries return 0 */
@@ -237,61 +279,29 @@ int main(int argc, char **argv){
             if(socket->send_command("channel_data", channel_data)) {
                 syslog(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
 
-                auto addValue = [&channel_data, &mb_mapping](uint16_t address, const std::string& value) {
-                    uint16_t response = 0;
-
-                    try {
-                        response = channel_data["payload"].value(value, 0);
-                    } catch(...) {
-                        response = 0;
-                    }
-
-                    mb_mapping->tab_input_registers[address] = htons(response);
-                };
-
-                auto addValue32 = [&channel_data, &mb_mapping](uint16_t address_start, const std::string& value) {
-                    uint32_t response = 0;
-
-                    try {
-                        response = channel_data["payload"].value(value, 0);
-                    } catch(...) {
-                        response = 0;
-                    }
-
-                    response = htonl(response);
-
-                    mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
-                    mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
-                };
-
-                auto addFloat = [&channel_data, &mb_mapping](uint16_t address_start, const std::string& value) {
-                    float response = 0.0;
-
-                    try {
-                        response = channel_data["payload"].value(value, 0.0);
-                    } catch(...) {
-                        response = 0.0;
-                    }
-
-                    uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
-
-                    mb_mapping->tab_input_registers[address_start] = htons(buff[1]);
-                    mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
-                };
-
-                addValue32( 1,      "date");
-                addFloat(   3,      "cage speed");
-                addFloat(   5,      "shaft speed");
-                addFloat(   7,      "temp mean");
-                addFloat(   9,      "stoerlevel");
-                addFloat(   11,     "mean rt");
-                addFloat(   13,     "mean amp");
-                addFloat(   15,     "rms rt");
-                addFloat(   17,     "rms amp");
-                addFloat(   19,     "temp0");
-                addFloat(   21,     "temp1");
-                addFloat(   23,     "druckwinkel");
+                addValue32( 1,      channel_data, "date");
+                addFloat(   3,      channel_data, "cage speed");
+                addFloat(   5,      channel_data, "shaft speed");
+                addFloat(   7,      channel_data, "temp mean");
+                addFloat(   9,      channel_data, "stoerlevel");
+                addFloat(   11,     channel_data, "mean rt");
+                addFloat(   13,     channel_data, "mean amp");
+                addFloat(   15,     channel_data, "rms rt");
+                addFloat(   17,     channel_data, "rms amp");
+                addFloat(   19,     channel_data, "temp0");
+                addFloat(   21,     channel_data, "temp1");
+                addFloat(   23,     channel_data, "druckwinkel");
             }
+
+            /*
+             * get axial_force
+             */
+            json axial_force;
+
+            if(socket->send_command("channel_data", axial_force, {{"name", "axial_force"}})) {
+                addFloat(   25,      axial_force, "axial_foce");
+            }
+
             uint16_t external_shaft_speed = ntohs(mb_mapping->tab_registers[1]);
 
             json payload = {

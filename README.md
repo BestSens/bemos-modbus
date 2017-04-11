@@ -27,6 +27,7 @@ Adressbereich 30001-39999
 | 3x0019        | float32       | Temperatur X1      | °C      |
 | 3x0021        | float32       | Temperatur X2      | °C      |
 | 3x0023        | float32       | Druckwinkel        | °       |
+| 3x0025        | float32       | Axialschub         | N       |
 
 ## Holding-Register
 Adressbereich 40001-49999
