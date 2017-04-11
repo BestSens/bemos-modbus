@@ -299,6 +299,7 @@ int main(int argc, char **argv){
             json axial_force;
 
             if(socket->send_command("channel_data", axial_force, {{"name", "axial_force"}})) {
+                syslog(LOG_DEBUG, "%s", axial_force.dump(2).c_str());
                 addFloat(   25,      axial_force, "axial_foce");
             }
 
