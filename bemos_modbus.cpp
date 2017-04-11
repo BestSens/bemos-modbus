@@ -237,7 +237,7 @@ int main(int argc, char **argv){
             if(socket->send_command("channel_data", channel_data)) {
                 syslog(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
 
-                auto addValue = [&channel_data, &mb_mapping](const std::string& value, uint16_t address) {
+                auto addValue = [&channel_data, &mb_mapping](uint16_t address, const std::string& value) {
                     uint16_t response = 0;
 
                     try {
@@ -249,7 +249,7 @@ int main(int argc, char **argv){
                     mb_mapping->tab_input_registers[address] = htons(response);
                 };
 
-                auto addValue32 = [&channel_data, &mb_mapping](const std::string& value, uint16_t address_start) {
+                auto addValue32 = [&channel_data, &mb_mapping](uint16_t address_start, const std::string& value) {
                     uint32_t response = 0;
 
                     try {
@@ -264,7 +264,7 @@ int main(int argc, char **argv){
                     mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
                 };
 
-                auto addFloat = [&channel_data, &mb_mapping](const std::string& value, uint16_t address_start) {
+                auto addFloat = [&channel_data, &mb_mapping](uint16_t address_start, const std::string& value) {
                     float response = 0.0;
 
                     try {
@@ -279,20 +279,20 @@ int main(int argc, char **argv){
                     mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
                 };
 
-                addValue32("date", 0x01);
-                addFloat("cage speed", 0x03);
-                addFloat("shaft speed", 0x05);
-                addFloat("temp mean", 0x07);
-                addFloat("stoerlevel", 0x09);
-                addFloat("mean rt", 0x0B);
-                addFloat("mean amp", 0x0D);
-                addFloat("rms rt", 0x0F);
-                addFloat("rms amp", 0x11);
-                addFloat("temp0", 0x13);
-                addFloat("temp1", 0x15);
-                addFloat("druckwinkel", 0x17);
+                addValue32( 1,      "date");
+                addFloat(   3,      "cage speed");
+                addFloat(   5,      "shaft speed");
+                addFloat(   7,      "temp mean");
+                addFloat(   9,      "stoerlevel");
+                addFloat(   11,     "mean rt");
+                addFloat(   13,     "mean amp");
+                addFloat(   15,     "rms rt");
+                addFloat(   17,     "rms amp");
+                addFloat(   19,     "temp0");
+                addFloat(   21,     "temp1");
+                addFloat(   23,     "druckwinkel");
             }
-            uint16_t external_shaft_speed = ntohs(mb_mapping->tab_registers[0x01]);
+            uint16_t external_shaft_speed = ntohs(mb_mapping->tab_registers[1]);
 
             json payload = {
                 {"name", "external_data"},

@@ -12,22 +12,22 @@ Adressbereich 30001-39999
 
 | Start-Adresse | Datentyp      | Messwert           | Einheit |
 | ------------- | ------------- | ------------------ | ------- |
-| 0x01          | uint32        | Unix-Zeitstempel   | s       |
-| 0x03          | float32       | Käfigdrehzahl      | RPM     |
-| 0x05          | float32       | Wellendrehzahl     | RPM     |
-| 0x07          | float32       | Temperatur         | °C      |
-| 0x09          | float32       | Störlevel          | -       |
-| 0x0B          | float32       | Mittlere Laufzeit  | ns      |
-| 0x0D          | float32       | Mittlere Amplitude | V       |
-| 0x0F          | float32       | RMS Laufzeit       | ns      |
-| 0x11          | float32       | RMS Amplitude      | V       |
-| 0x13          | float32       | Temperatur X1      | °C      |
-| 0x15          | float32       | Temperatur X2      | °C      |
-| 0x17          | float32       | Druckwinkel        | °       |
+| 0001          | uint32        | Unix-Zeitstempel   | s       |
+| 0003          | float32       | Käfigdrehzahl      | RPM     |
+| 0005          | float32       | Wellendrehzahl     | RPM     |
+| 0007          | float32       | Temperatur         | °C      |
+| 0009          | float32       | Störlevel          | -       |
+| 0011          | float32       | Mittlere Laufzeit  | ns      |
+| 0013          | float32       | Mittlere Amplitude | V       |
+| 0015          | float32       | RMS Laufzeit       | ns      |
+| 0017          | float32       | RMS Amplitude      | V       |
+| 0019          | float32       | Temperatur X1      | °C      |
+| 0021          | float32       | Temperatur X2      | °C      |
+| 0023          | float32       | Druckwinkel        | °       |
 
 ## Holding-Register
 Adressbereich 40001-49999
 
 | Start-Adresse | Datentyp      | Messwert               | Einheit |
 | ------------- | ------------- | ---------------------- | ------- |
-| 0x01          | uint16        | Externe Wellendrehzahl | RPM     |
+| 0001          | uint16        | Externe Wellendrehzahl | RPM     |
