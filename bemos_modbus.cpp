@@ -246,7 +246,7 @@ int main(int argc, char **argv){
                         response = 0;
                     }
 
-                    mb_mapping->tab_input_registers[address] = response;
+                    mb_mapping->tab_input_registers[address] = htons(response);
                 };
 
                 auto addValue32 = [&channel_data, &mb_mapping](const std::string& value, uint16_t address_start) {
@@ -257,6 +257,8 @@ int main(int argc, char **argv){
                     } catch(...) {
                         response = 0;
                     }
+
+                    response = htonl(response);
 
                     mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
                     mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
@@ -273,8 +275,8 @@ int main(int argc, char **argv){
 
                     uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
 
-                    mb_mapping->tab_input_registers[address_start] = buff[1];
-                    mb_mapping->tab_input_registers[address_start+1] = buff[0];
+                    mb_mapping->tab_input_registers[address_start] = htons(buff[1]);
+                    mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
                 };
 
                 addValue32("date", 0x00);
@@ -290,7 +292,7 @@ int main(int argc, char **argv){
                 addFloat("temp1", 0x14);
                 addFloat("druckwinkel", 0x16);
             }
-            uint16_t external_shaft_speed = mb_mapping->tab_registers[0];
+            uint16_t external_shaft_speed = ntohs(mb_mapping->tab_registers[0]);
 
             json payload = {
                 {"name", "external_data"},
