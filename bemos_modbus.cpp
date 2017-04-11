@@ -279,20 +279,20 @@ int main(int argc, char **argv){
                     mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
                 };
 
-                addValue32("date", 0x00);
-                addFloat("cage speed", 0x02);
-                addFloat("shaft speed", 0x04);
-                addFloat("temp mean", 0x06);
-                addFloat("stoerlevel", 0x08);
-                addFloat("mean rt", 0x0A);
-                addFloat("mean amp", 0x0C);
-                addFloat("rms rt", 0x0E);
-                addFloat("rms amp", 0x10);
-                addFloat("temp0", 0x12);
-                addFloat("temp1", 0x14);
-                addFloat("druckwinkel", 0x16);
+                addValue32("date", 0x01);
+                addFloat("cage speed", 0x03);
+                addFloat("shaft speed", 0x05);
+                addFloat("temp mean", 0x07);
+                addFloat("stoerlevel", 0x09);
+                addFloat("mean rt", 0x0B);
+                addFloat("mean amp", 0x0D);
+                addFloat("rms rt", 0x0F);
+                addFloat("rms amp", 0x11);
+                addFloat("temp0", 0x13);
+                addFloat("temp1", 0x15);
+                addFloat("druckwinkel", 0x17);
             }
-            uint16_t external_shaft_speed = ntohs(mb_mapping->tab_registers[0]);
+            uint16_t external_shaft_speed = ntohs(mb_mapping->tab_registers[0x01]);
 
             json payload = {
                 {"name", "external_data"},
