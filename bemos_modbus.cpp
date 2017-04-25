@@ -73,6 +73,8 @@ int main(int argc, char **argv){
         switch(c) {
             case 'd':
                 daemon = 1;
+                closelog();
+                openlog("bemos-modbus", LOG_NDELAY | LOG_PID, LOG_LOCAL1);
                 syslog(LOG_INFO, "start daemonized");
                 break;
             case 'v':
