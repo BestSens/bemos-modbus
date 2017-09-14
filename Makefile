@@ -1,9 +1,20 @@
-CFLAGS = -std=c11 -D_XOPEN_SOURCE=700 -O3 -Wall
-CPPFLAGS = -std=c++14 -O3 -Wall -I/usr/include/modbus
+CFLAGS = -std=c11 -D_XOPEN_SOURCE=700 -DNDEBUG
+CPPFLAGS = -std=c++14 -DNDEBUG -I/usr/include/modbus
 LDFLAGS = -lm -lpthread -lcrypto -lmodbus
 
 OBJ = bemos_modbus.o
 BIN = bemos_modbus
+
+all: $(BIN)
+
+debug: CFLAGS = -std=c11 -D_XOPEN_SOURCE=700 -DDEBUG -O0 -Wall -g
+debug: CPPFLAGS = -std=c++14 -DDEBUG -O0 -Wall -g
+debug: $(BIN)
+
+systemd: CFLAGS += -DENABLE_SYSTEMD_STATUS
+systemd: CPPFLAGS += -DENABLE_SYSTEMD_STATUS
+systemd: LDFLAGS += -lsystemd
+systemd: $(BIN)
 
 .PHONY: clean
 
@@ -19,7 +30,7 @@ FORCE:
 gitrev.hpp.md5: gitrev.hpp
 	@md5sum $< | cmp -s $@ -; if test $$? -ne 0; then md5sum $< > $@; fi
 
-bemos_modbus.o: bemos_modbus.cpp version.hpp gitrev.hpp.md5
+bemos_modbus.o: bemos_modbus.cpp version.hpp libs/bone_helper/system_helper.hpp libs/json/src/json.hpp libs/cxxopts/include/cxxopts.hpp gitrev.hpp.md5
 	$(CXX) $(CPPFLAGS) -c $<
 
 clean:

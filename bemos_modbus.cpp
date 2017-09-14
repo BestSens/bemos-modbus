@@ -14,15 +14,18 @@
 #include <cstring>
 #include <string>
 #include <modbus.h>
-#include <syslog.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 
 #include "version.hpp"
+#include "libs/cxxopts/include/cxxopts.hpp"
 #include "libs/json/src/json.hpp"
 #include "libs/bone_helper/netHelper.hpp"
+#include "libs/bone_helper/system_helper.hpp"
 
 using namespace bestsens;
+
+system_helper::LogManager logfile("bemos-modbus");
 
 #define LOGIN_USER "bemos-analysis"
 #define LOGIN_HASH "82e324d4dac1dacf019e498d6045835b3998def1c1cece4abf94a3743f149e208f30276b3275fdbb8c60dea4a042c490d73168d41cf70f9cdc3e1e62eb43f8e4"
@@ -31,96 +34,84 @@ using namespace bestsens;
 #define GROUPID 880
 
 int main(int argc, char **argv){
-    for(int i = 1; i<argc; i++) {
-        if(!strcmp(argv[i], "--version")) {
-            std::cout << "bemos-modbus version: " << APP_VERSION << std::endl;
-            return EXIT_SUCCESS;
-        }
-    }
-
     modbus_mapping_t *mb_mapping;
     uint8_t *query;
     modbus_t *ctx;
     int s = -1;
     int rc;
 
-    int c;
-    int daemon = 0;
-    int long_index = 0;
+    bool daemon = false;
     int port = 502;
 
-    setlogmask(LOG_UPTO (LOG_INFO));
-    openlog("bemos-modbus", LOG_CONS | LOG_NDELAY | LOG_PERROR | LOG_PID, LOG_LOCAL1);
+    logfile.setMaxLogLevel(LOG_INFO);
 
     std::string conn_target = "localhost";
     std::string conn_port = "6450";
     std::string username = std::string(LOGIN_USER);
     std::string password = std::string(LOGIN_HASH);
 
-    opterr = 0;
-    static struct option long_options[] = {
-        {"connect",				required_argument,	0,	'c'},
-        {"daemonize",			no_argument,		0,	'd'},
-        {"verbose",				no_argument,		0,	'v'},
-        {"port",				required_argument,	0,	'p'},
-        {"username",            required_argument,  0,  'u'},
-        {"password",            required_argument,  0,  'l'},
-        {"listen",              required_argument,  0,  'o'},
-        {0, 0, 0, 0}
-    };
+    /*
+	 * parse commandline options
+	 */
+	{
+		cxxopts::Options options("bemos-currentloop", "BeMoS one currentloop application");
 
-    while((c = getopt_long(argc, argv, "c:p:dv", long_options, &long_index)) != -1) {
-        switch(c) {
-            case 'd':
-                daemon = 1;
-                closelog();
-                openlog("bemos-modbus", LOG_NDELAY | LOG_PID, LOG_LOCAL1);
-                syslog(LOG_INFO, "start daemonized");
-                break;
-            case 'v':
-                setlogmask(LOG_UPTO (LOG_DEBUG));
-                syslog(LOG_INFO, "verbose output enabled");
-                break;
-            case 'c':
-                if(optarg) {
-                    conn_target = std::string(optarg);
-                    syslog(LOG_INFO, "connecting to %s", conn_target.c_str());
-                }
-                break;
-            case 'p':
-                if(optarg) {
-                    conn_port = std::string(optarg);
-                    syslog(LOG_INFO, "connecting to port %s", conn_port.c_str());
-                }
-                break;
-            case 'u':
-                if(optarg) {
-                    username = std::string(optarg);
-                    syslog(LOG_INFO, "using username %s for login", username.c_str());
-                }
-                break;
-            case 'l':
-                if(optarg)
-                    password = netHelper::sha512(optarg);
+		options.add_options()
+			("version", "print version string")
+			("h,help", "print help")
+			("d,daemonize", "daemonize server", cxxopts::value<bool>(daemon))
+			("v,verbose", "verbose output")
+			("c,connect", "connect to given host", cxxopts::value<std::string>(conn_target)->default_value(conn_target))
+			("p,port", "connect to given port", cxxopts::value<std::string>(conn_port)->default_value(conn_port))
+			("username", "username used to connect", cxxopts::value<std::string>(username)->default_value(std::string(LOGIN_USER)))
+			("password", "plain text password used to connect", cxxopts::value<std::string>())
+            ("suppress_syslog", "do not output syslog messages to stdout")
+            ("o,listen", "modbus tcp listen port", cxxopts::value<int>(port))
+		;
 
-                break;
-            case 'o':
-                if(optarg)
-                    port = (int)strtol(optarg, NULL, 0);
+		try {
+			options.parse(argc, argv);
+		} catch(const std::exception& e) {
+			logfile.write(LOG_CRIT, "%s", e.what());
+			return EXIT_FAILURE;
+		}
 
-                break;
-            case '?':
-                syslog(LOG_ERR, "command not found or argument required");
+		if(options.count("help")) {
+			std::cout << options.help() << std::endl;
+			return EXIT_SUCCESS;
+		}
+
+		if(options.count("version")) {
+			std::cout << "bemos-modbus version: " << APP_VERSION << std::endl;
+			return EXIT_SUCCESS;
+		}
+
+		if(daemon) {
+            logfile.setEcho(false);
+            logfile.write(LOG_INFO, "start daemonized");
+		}
+
+        if(options.count("suppress_syslog")) {
+            logfile.setEcho(false);
         }
-    }
 
-    syslog(LOG_INFO, "starting bemos-modbus %s", APP_VERSION);
+		if(options.count("verbose")) {
+            logfile.setMaxLogLevel(LOG_DEBUG);
+			logfile.write(LOG_INFO, "verbose output enabled");
+		}
+
+		if(options.count("password")) {
+			password = bestsens::netHelper::sha512(options["password"].as<std::string>());
+		}
+	}
+
+    logfile.write(LOG_INFO, "starting bemos-modbus %s", APP_VERSION);
 
     /*
      * Test IEEE 754
      */
     if(!std::numeric_limits<float>::is_iec559)
-        syslog(LOG_WARNING, "application wasn't compiled with IEEE 754 standard, floating point values may be out of standard");
+        logfile.write(LOG_WARNING, "application wasn't compiled with IEEE 754 standard, floating point values may be out of standard");
 
     /*
      * open socket
@@ -131,7 +122,7 @@ int main(int argc, char **argv){
      * connect to socket
      */
     if(socket->connect()) {
-        syslog(LOG_CRIT, "connection failed");
+        logfile.write(LOG_CRIT, "connection failed");
         return EXIT_FAILURE;
     }
 
@@ -139,7 +130,7 @@ int main(int argc, char **argv){
      * login if enabled
      */
     if(!socket->login(username, password)) {
-        syslog(LOG_CRIT, "login failed");
+        logfile.write(LOG_CRIT, "login failed");
         return EXIT_FAILURE;
     }
 
@@ -150,7 +141,7 @@ int main(int argc, char **argv){
     mb_mapping = modbus_mapping_new(0, 0, 10, 50);
 
     if (mb_mapping == NULL) {
-        syslog(LOG_CRIT, "Failed to allocate the mapping: %s", modbus_strerror(errno));
+        logfile.write(LOG_CRIT, "Failed to allocate the mapping: %s", modbus_strerror(errno));
         modbus_free(ctx);
         return EXIT_FAILURE;
     }
@@ -158,7 +149,7 @@ int main(int argc, char **argv){
     s = modbus_tcp_listen(ctx, 1);
 
     if(s == -1) {
-        syslog(LOG_CRIT, "cannot reserve port %d, exiting", port);
+        logfile.write(LOG_CRIT, "cannot reserve port %d, exiting", port);
         modbus_mapping_free(mb_mapping);
         free(query);
         /* For RTU */
@@ -167,50 +158,32 @@ int main(int argc, char **argv){
         return EXIT_FAILURE;
     }
 
-    syslog(LOG_INFO, "listening on port %d", port);
+    logfile.write(LOG_INFO, "listening on port %d", port);
 
     if(getuid() == 0) {
         /* process is running as root, drop privileges */
-        syslog(LOG_INFO, "running as root, dropping privileges");
+        logfile.write(LOG_INFO, "running as root, dropping privileges");
 
         if(setgid(GROUPID) != 0)
-            syslog(LOG_ERR, "setgid: Unable to drop group privileges: %s", strerror(errno));
+            logfile.write(LOG_ERR, "setgid: Unable to drop group privileges: %s", strerror(errno));
         if(setuid(USERID) != 0)
-            syslog(LOG_ERR, "setuid: Unable to drop user privileges: %s", strerror(errno));
+            logfile.write(LOG_ERR, "setuid: Unable to drop user privileges: %s", strerror(errno));
     }
 
     /* Deamonize */
-    if(daemon == 1) {
-        pid_t pid, sid;
+    if(daemon) {
+		bestsens::system_helper::daemonize();
+		logfile.write(LOG_INFO, "daemon created");
+	} else {
+		logfile.write(LOG_DEBUG, "skipped daemonizing");
+	}
 
-        pid = fork();
-
-        if (pid < 0) { exit(EXIT_FAILURE); }
-
-        //We got a good pid, Close the Parent Process
-        if (pid > 0) { exit(EXIT_SUCCESS); }
-
-        //Change File Mask
-        umask(0);
-
-        //Create a new Signature Id for our child
-        sid = setsid();
-        if (sid < 0) { exit(EXIT_FAILURE); }
-
-        //Change Directory
-        //If we cant find the directory we exit with failure.
-        if ((chdir("/")) < 0) { exit(EXIT_FAILURE); }
-
-        //Close Standard File Descriptors
-        close(STDIN_FILENO);
-        close(STDOUT_FILENO);
-        close(STDERR_FILENO);
-    }
+    bestsens::system_helper::systemd::ready();
 
     while(1) {
         modbus_tcp_accept(ctx, &s);
 
-        syslog(LOG_DEBUG, "client connected");
+        logfile.write(LOG_DEBUG, "client connected");
 
         /*
          * register "external_data" algo
@@ -279,7 +252,7 @@ int main(int argc, char **argv){
             json channel_data;
 
             if(socket->send_command("channel_data", channel_data)) {
-                syslog(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
+                logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
 
                 addValue32( 1,      channel_data, "date");
                 addFloat(   3,      channel_data, "cage speed");
@@ -301,7 +274,7 @@ int main(int argc, char **argv){
             json axial_force;
 
             if(socket->send_command("channel_data", axial_force, {{"name", "axial_force"}})) {
-                syslog(LOG_DEBUG, "%s", axial_force.dump(2).c_str());
+                logfile.write(LOG_DEBUG, "%s", axial_force.dump(2).c_str());
                 addFloat(   25,      axial_force, "axial_foce");
             }
 
@@ -314,7 +287,7 @@ int main(int argc, char **argv){
                 }}
             };
 
-            syslog(LOG_DEBUG, "updating shaft speed %s", payload.dump(2).c_str());
+            logfile.write(LOG_DEBUG, "updating shaft speed %s", payload.dump(2).c_str());
 
             socket->send_command("new_data", j, payload);
 
@@ -324,7 +297,7 @@ int main(int argc, char **argv){
             }
         }
 
-        syslog(LOG_DEBUG, "client disconnected");
+        logfile.write(LOG_DEBUG, "client disconnected");
     }
 
     close(s);
@@ -334,7 +307,7 @@ int main(int argc, char **argv){
     modbus_close(ctx);
     modbus_free(ctx);
 
-    syslog(LOG_DEBUG, "exited");
+    logfile.write(LOG_DEBUG, "exited");
 
     return EXIT_SUCCESS;
 }
