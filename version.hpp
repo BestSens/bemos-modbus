@@ -7,7 +7,7 @@
 #define APP_VERSION_GITREV
 #endif
 
-#define APP_DEV
+#undef APP_DEV
 
 #define APP_VERSION_MAJOR   1
 #define APP_VERSION_MINOR   0
