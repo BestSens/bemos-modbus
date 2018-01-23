@@ -54,7 +54,7 @@ int main(int argc, char **argv){
 	 * parse commandline options
 	 */
 	{
-		cxxopts::Options options("bemos-currentloop", "BeMoS one currentloop application");
+		cxxopts::Options options("bemos-modbus", "BeMoS one modbus application");
 
 		options.add_options()
 			("version", "print version string")
