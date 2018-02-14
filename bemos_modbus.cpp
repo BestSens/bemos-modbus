@@ -19,7 +19,7 @@
 
 #include "version.hpp"
 #include "libs/cxxopts/include/cxxopts.hpp"
-#include "libs/json/src/json.hpp"
+#include "libs/json/single_include/nlohmann/json.hpp"
 #include "libs/bone_helper/netHelper.hpp"
 #include "libs/bone_helper/system_helper.hpp"
 
