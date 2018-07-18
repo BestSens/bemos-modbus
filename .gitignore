@@ -1,4 +1,6 @@
 *.o
+*.d
 bemos_modbus
 gitrev.hpp
 gitrev.hpp.md5
+*.sublime-workspace
