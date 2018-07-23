@@ -185,14 +185,6 @@ int main(int argc, char **argv){
 
 		logfile.write(LOG_DEBUG, "client connected");
 
-		/*
-		 * register "external_data" algo
-		 */
-		json j;
-		socket->send_command("register_analysis", j, {{"name", "external_data"}});
-
-		std::cout << std::setw(2) << j << std::endl;
-
 		while(1) {
 			auto addValue = [&mb_mapping](uint16_t address, const json& source, const std::string& value) {
 				uint16_t response = 0;
@@ -277,19 +269,6 @@ int main(int argc, char **argv){
 				logfile.write(LOG_DEBUG, "%s", axial_force.dump(2).c_str());
 				addFloat(   25,	axial_force, "axial_foce");
 			}
-
-			uint16_t external_shaft_speed = ntohs(mb_mapping->tab_registers[1]);
-
-			json payload = {
-				{"name", "external_data"},
-				{"data", {
-					{"shaft_speed", external_shaft_speed}
-				}}
-			};
-
-			logfile.write(LOG_DEBUG, "updating shaft speed %s", payload.dump(2).c_str());
-
-			socket->send_command("new_data", j, payload);
 
 			rc = modbus_reply(ctx, query, rc, mb_mapping);
 			if (rc == -1) {
