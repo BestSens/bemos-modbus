@@ -8,11 +8,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <atomic>
+#include <thread>
 #include <errno.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <cstring>
 #include <string>
+#include <mutex>
 #include <modbus.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -21,6 +24,7 @@
 #include "libs/cxxopts/include/cxxopts.hpp"
 #include "libs/json/single_include/nlohmann/json.hpp"
 #include "libs/bone_helper/netHelper.hpp"
+#include "libs/bone_helper/loopTimer.hpp"
 #include "libs/bone_helper/system_helper.hpp"
 
 using namespace bestsens;
@@ -33,12 +37,132 @@ system_helper::LogManager logfile("bemos-modbus");
 #define USERID 1200
 #define GROUPID 880
 
+std::atomic<bool> running{true};
+std::mutex mb_mapping_access_mtx;
+
+void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, modbus_mapping_t *mb_mapping) {
+	bestsens::loopTimer timer(std::chrono::seconds(2), 0);
+	while(running) {
+		/*
+		 * wait before reconnecting
+		 */
+		timer.wait_on_tick();
+
+		/*
+		 * open socket
+		 */
+		bestsens::jsonNetHelper socket = bestsens::jsonNetHelper(conn_target, conn_port);
+
+		/*
+		 * connect to socket
+		 */
+		if(socket.connect()) {
+			logfile.write(LOG_CRIT, "connection failed");
+			continue;
+		}
+
+		/*
+		 * login if enabled
+		 */
+		if(!socket.login(username, password)) {
+			logfile.write(LOG_CRIT, "login failed");
+			continue;
+		}
+
+		try {
+			bestsens::loopTimer dataTimer(std::chrono::seconds(1), 0);
+			while(running) {
+				timer.wait_on_tick();
+
+				auto addValue = [&mb_mapping](uint16_t address, const json& source, const std::string& value) {
+					uint16_t response = 0;
+
+					try {
+						response = source["payload"].value(value, 0);
+					} catch(...) {
+						response = 0;
+					}
+
+					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+					mb_mapping->tab_input_registers[address] = htons(response);
+				};
+
+				auto addValue32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& value) {
+					uint32_t response = 0;
+
+					try {
+						response = source["payload"].value(value, 0);
+					} catch(const json::exception& e) {
+						response = 0;
+					}
+
+					response = htonl(response);
+
+					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+					mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
+					mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
+				};
+
+				auto addFloat = [&mb_mapping](uint16_t address_start, const json& source, const std::string& value) {
+					float response = 0.0;
+
+					try {
+						response = source["payload"].value(value, 0.0);
+					} catch(const json::exception& e) {
+						response = 0.0;
+					}
+
+					uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
+
+					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+					mb_mapping->tab_input_registers[address_start] = htons(buff[1]);
+					mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
+				};
+
+				/*
+				 * get channel_data
+				 */
+				json channel_data;
+
+				if(socket.send_command("channel_data", channel_data)) {
+					logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
+
+					addValue32( 1,	channel_data, "date");
+					addFloat(   3,	channel_data, "cage speed");
+					addFloat(   5,	channel_data, "shaft speed");
+					addFloat(   7,	channel_data, "temp mean");
+					addFloat(   9,	channel_data, "stoerlevel");
+					addFloat(   11,	channel_data, "mean rt");
+					addFloat(   13,	channel_data, "mean amp");
+					addFloat(   15,	channel_data, "rms rt");
+					addFloat(   17,	channel_data, "rms amp");
+					addFloat(   19,	channel_data, "temp0");
+					addFloat(   21,	channel_data, "temp1");
+					addFloat(   23,	channel_data, "druckwinkel");
+				}
+
+				/*
+				 * get axial_force
+				 */
+				json axial_force;
+
+				if(socket.send_command("channel_data", axial_force, {{"name", "axial_force"}})) {
+					logfile.write(LOG_DEBUG, "%s", axial_force.dump(2).c_str());
+					addFloat(   25,	axial_force, "axial_foce");
+				}
+			}
+		} catch(...) {}
+	}
+}
+
 int main(int argc, char **argv){
 	modbus_mapping_t *mb_mapping;
 	uint8_t *query;
 	modbus_t *ctx;
 	int s = -1;
 	int rc;
+
+	assert(running.is_lock_free());
 
 	bool daemon = false;
 	int port = 502;
@@ -113,27 +237,6 @@ int main(int argc, char **argv){
 	if(!std::numeric_limits<float>::is_iec559)
 		logfile.write(LOG_WARNING, "application wasn't compiled with IEEE 754 standard, floating point values may be out of standard");
 
-	/*
-	 * open socket
-	 */
-	bestsens::jsonNetHelper * socket = new bestsens::jsonNetHelper(conn_target, conn_port);
-
-	/*
-	 * connect to socket
-	 */
-	if(socket->connect()) {
-		logfile.write(LOG_CRIT, "connection failed");
-		return EXIT_FAILURE;
-	}
-
-	/*
-	 * login if enabled
-	 */
-	if(!socket->login(username, password)) {
-		logfile.write(LOG_CRIT, "login failed");
-		return EXIT_FAILURE;
-	}
-
 	ctx = modbus_new_tcp("127.0.0.1", port);
 	query = (uint8_t*)malloc(MODBUS_TCP_MAX_ADU_LENGTH);
 	//int header_length = modbus_get_header_length(ctx);
@@ -170,6 +273,9 @@ int main(int argc, char **argv){
 			logfile.write(LOG_ERR, "setuid: Unable to drop user privileges: %s", strerror(errno));
 	}
 
+	/* spawn aquire thread */ 
+	std::thread aquire_inst(data_aquisition, conn_target, conn_port, username, password, mb_mapping);
+
 	/* Deamonize */
 	if(daemon) {
 		bestsens::system_helper::daemonize();
@@ -186,48 +292,6 @@ int main(int argc, char **argv){
 		logfile.write(LOG_DEBUG, "client connected");
 
 		while(1) {
-			auto addValue = [&mb_mapping](uint16_t address, const json& source, const std::string& value) {
-				uint16_t response = 0;
-
-				try {
-					response = source["payload"].value(value, 0);
-				} catch(...) {
-					response = 0;
-				}
-
-				mb_mapping->tab_input_registers[address] = htons(response);
-			};
-
-			auto addValue32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& value) {
-				uint32_t response = 0;
-
-				try {
-					response = source["payload"].value(value, 0);
-				} catch(const json::exception& e) {
-					response = 0;
-				}
-
-				response = htonl(response);
-
-				mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
-				mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
-			};
-
-			auto addFloat = [&mb_mapping](uint16_t address_start, const json& source, const std::string& value) {
-				float response = 0.0;
-
-				try {
-					response = source["payload"].value(value, 0.0);
-				} catch(const json::exception& e) {
-					response = 0.0;
-				}
-
-				uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
-
-				mb_mapping->tab_input_registers[address_start] = htons(buff[1]);
-				mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
-			};
-
 			do {
 				rc = modbus_receive(ctx, query);
 				/* Filtered queries return 0 */
@@ -238,38 +302,7 @@ int main(int argc, char **argv){
 				break;
 			}
 
-			/*
-			 * get channel_data
-			 */
-			json channel_data;
-
-			if(socket->send_command("channel_data", channel_data)) {
-				logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
-
-				addValue32( 1,	channel_data, "date");
-				addFloat(   3,	channel_data, "cage speed");
-				addFloat(   5,	channel_data, "shaft speed");
-				addFloat(   7,	channel_data, "temp mean");
-				addFloat(   9,	channel_data, "stoerlevel");
-				addFloat(   11,	channel_data, "mean rt");
-				addFloat(   13,	channel_data, "mean amp");
-				addFloat(   15,	channel_data, "rms rt");
-				addFloat(   17,	channel_data, "rms amp");
-				addFloat(   19,	channel_data, "temp0");
-				addFloat(   21,	channel_data, "temp1");
-				addFloat(   23,	channel_data, "druckwinkel");
-			}
-
-			/*
-			 * get axial_force
-			 */
-			json axial_force;
-
-			if(socket->send_command("channel_data", axial_force, {{"name", "axial_force"}})) {
-				logfile.write(LOG_DEBUG, "%s", axial_force.dump(2).c_str());
-				addFloat(   25,	axial_force, "axial_foce");
-			}
-
+			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			rc = modbus_reply(ctx, query, rc, mb_mapping);
 			if (rc == -1) {
 				break;
@@ -278,6 +311,11 @@ int main(int argc, char **argv){
 
 		logfile.write(LOG_DEBUG, "client disconnected");
 	}
+
+	running = false;
+
+	/* wait on thread exit */
+	aquire_inst.join();
 
 	close(s);
 	modbus_mapping_free(mb_mapping);
