@@ -1,5 +1,7 @@
-## 1.0.2 (unreleased)
+## 1.1.0 (unreleased)
 - move data aquisition to parallel thread to decrease response times and jitter
+- error state of registers is now indicated a 0x8000 in register and 0 in corresponding coil
+- add dynamic mapping of data to input registers via `mb_map` setting
 
 ## 1.0.1 (23.07.2018)
 - update nlohmann/json library to v3.1.1 (https://github.com/nlohmann/json/releases/tag/v3.1.1)

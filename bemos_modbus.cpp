@@ -25,6 +25,7 @@
 #include "libs/json/single_include/nlohmann/json.hpp"
 #include "libs/bone_helper/netHelper.hpp"
 #include "libs/bone_helper/loopTimer.hpp"
+#include "libs/bone_helper/jsonHelper.hpp"
 #include "libs/bone_helper/system_helper.hpp"
 
 using namespace bestsens;
@@ -44,6 +45,17 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 	bestsens::loopTimer timer(std::chrono::seconds(2), 0);
 	while(running) {
 		/*
+		 * set error flags and default values for mappings
+		 */
+		{
+			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+			for(int i = 0; i <= mb_mapping->nb_input_registers; i++) {
+				mb_mapping->tab_input_registers[i] = 0x8000;
+				mb_mapping->tab_input_bits[i] = 0;
+			}	
+		}
+
+		/*
 		 * wait before reconnecting
 		 */
 		timer.wait_on_tick();
@@ -52,6 +64,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 		 * open socket
 		 */
 		bestsens::jsonNetHelper socket = bestsens::jsonNetHelper(conn_target, conn_port);
+		socket.set_timeout(1);
 
 		/*
 		 * connect to socket
@@ -69,86 +82,137 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			continue;
 		}
 
+		logfile.write(LOG_INFO, "connected");
+
 		try {
 			bestsens::loopTimer dataTimer(std::chrono::seconds(1), 0);
 			while(running) {
 				timer.wait_on_tick();
 
-				auto addValue = [&mb_mapping](uint16_t address, const json& source, const std::string& value) {
-					uint16_t response = 0;
-
+				auto addValue = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
 					try {
-						response = source["payload"].value(value, 0);
-					} catch(...) {
-						response = 0;
-					}
+						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
+						if(oldness > 10)
+							throw std::runtime_error("data too old");
 
-					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-					mb_mapping->tab_input_registers[address] = htons(response);
+						uint16_t response = source[source_name][value];
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+						mb_mapping->tab_input_registers[address_start] = htons(response);
+						mb_mapping->tab_input_bits[address_start] = 1;
+					} catch(const std::exception& e) {
+						logfile.write(LOG_WARNING, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						mb_mapping->tab_input_registers[address_start] = 0x8000;
+						mb_mapping->tab_input_bits[address_start] = 0;
+					}
 				};
 
-				auto addValue32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& value) {
-					uint32_t response = 0;
-
+				auto addValue32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
 					try {
-						response = source["payload"].value(value, 0);
-					} catch(const json::exception& e) {
-						response = 0;
+						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
+						if(oldness > 10)
+							throw std::runtime_error("data too old");
+
+						uint32_t response = source[source_name][value];
+
+						response = htonl(response);
+
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+						mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
+						mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
+						mb_mapping->tab_input_bits[address_start] = 1;
+					} catch(const std::exception& e) {
+						logfile.write(LOG_WARNING, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+						mb_mapping->tab_input_registers[address_start] = 0x8000;
+						mb_mapping->tab_input_registers[address_start+1] = 0x8000;
+						mb_mapping->tab_input_bits[address_start] = 0;
 					}
-
-					response = htonl(response);
-
-					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-					mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
-					mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
 				};
 
-				auto addFloat = [&mb_mapping](uint16_t address_start, const json& source, const std::string& value) {
-					float response = 0.0;
-
+				auto addFloat = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
 					try {
-						response = source["payload"].value(value, 0.0);
-					} catch(const json::exception& e) {
-						response = 0.0;
+						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
+						if(oldness > 10)
+							throw std::runtime_error("data too old");
+
+						float response = source[source_name][value];
+
+						uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
+
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+						mb_mapping->tab_input_registers[address_start] = htons(buff[1]);
+						mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
+						mb_mapping->tab_input_bits[address_start] = 1;
+					} catch(const std::exception& e) {
+						logfile.write(LOG_WARNING, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+						mb_mapping->tab_input_registers[address_start] = 0x8000;
+						mb_mapping->tab_input_registers[address_start+1] = 0x8000;
+						mb_mapping->tab_input_bits[address_start] = 0;
 					}
-
-					uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
-
-					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-					mb_mapping->tab_input_registers[address_start] = htons(buff[1]);
-					mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
 				};
+
+				/*
+				 * get map_data
+				 */
+				const json default_map_data = {
+						{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}},
+						{{"start address", 3}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
+						{{"start address", 5}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
+						{{"start address", 7}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
+						{{"start address", 9}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "stoerlevel"}},
+						{{"start address", 11}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean rt"}},
+						{{"start address", 13}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean amp"}},
+						{{"start address", 15}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms rt"}},
+						{{"start address", 17}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms amp"}},
+						{{"start address", 19}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp0"}},
+						{{"start address", 21}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
+						{{"start address", 23}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
+						{{"start address", 25}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "axial force"}}
+				};
+
+				json map_data;
+				if(socket.send_command("channel_attributes", map_data, {{"name", "mb_map"}})) {
+					if(is_json_array(map_data, "payload"))
+						map_data = map_data["payload"];
+					else
+						map_data = default_map_data;
+				}
 
 				/*
 				 * get channel_data
 				 */
 				json channel_data;
 
-				if(socket.send_command("channel_data", channel_data)) {
+				if(socket.send_command("channel_data", channel_data, {{"all", true}})) {
 					logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
 
-					addValue32( 1,	channel_data, "date");
-					addFloat(   3,	channel_data, "cage speed");
-					addFloat(   5,	channel_data, "shaft speed");
-					addFloat(   7,	channel_data, "temp mean");
-					addFloat(   9,	channel_data, "stoerlevel");
-					addFloat(   11,	channel_data, "mean rt");
-					addFloat(   13,	channel_data, "mean amp");
-					addFloat(   15,	channel_data, "rms rt");
-					addFloat(   17,	channel_data, "rms amp");
-					addFloat(   19,	channel_data, "temp0");
-					addFloat(   21,	channel_data, "temp1");
-					addFloat(   23,	channel_data, "druckwinkel");
-				}
+					if(is_json_object(channel_data, "payload")) {
+						const json payload = channel_data["payload"];
 
-				/*
-				 * get axial_force
-				 */
-				json axial_force;
+						for(auto &element : map_data) {
+							try {
+								int start_address = element["start address"];
+								std::string type = element.value("type", "i16");
+								std::string source = element.value("source", "channel_data");
+								std::string attribute = element["attribute"];
 
-				if(socket.send_command("channel_data", axial_force, {{"name", "axial_force"}})) {
-					logfile.write(LOG_DEBUG, "%s", axial_force.dump(2).c_str());
-					addFloat(   25,	axial_force, "axial_foce");
+								if(type == "i32") {
+									addValue32(start_address, payload, source, attribute);
+								} else if(type == "float") {
+									addFloat(start_address, payload, source, attribute);
+								} else {
+									addValue(start_address, payload, source, attribute);
+								}
+							} catch(...) {
+								logfile.write(LOG_WARNING, "error reading element of register map: %s", element.dump().c_str());
+								continue;
+							}
+						}
+					} else {
+						logfile.write(LOG_ERR, "error retrieving data");
+						break;
+					}
 				}
 			}
 		} catch(...) {}
@@ -241,7 +305,7 @@ int main(int argc, char **argv){
 	query = (uint8_t*)malloc(MODBUS_TCP_MAX_ADU_LENGTH);
 	//int header_length = modbus_get_header_length(ctx);
 
-	mb_mapping = modbus_mapping_new(0, 0, 10, 50);
+	mb_mapping = modbus_mapping_new(0, 256, 256, 256);
 
 	if (mb_mapping == NULL) {
 		logfile.write(LOG_CRIT, "Failed to allocate the mapping: %s", modbus_strerror(errno));
