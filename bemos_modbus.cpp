@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
 #include <atomic>
 #include <thread>
 #include <errno.h>
@@ -41,7 +42,7 @@ system_helper::LogManager logfile("bemos-modbus");
 std::atomic<bool> running{true};
 std::mutex mb_mapping_access_mtx;
 
-void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, modbus_mapping_t *mb_mapping) {
+void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, const json& mb_register_map, modbus_mapping_t *mb_mapping) {
 	bestsens::loopTimer timer(std::chrono::seconds(2), 0);
 	while(running) {
 		/*
@@ -153,33 +154,6 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 				};
 
 				/*
-				 * get map_data
-				 */
-				const json default_map_data = {
-						{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}},
-						{{"start address", 3}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
-						{{"start address", 5}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
-						{{"start address", 7}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
-						{{"start address", 9}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "stoerlevel"}},
-						{{"start address", 11}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean rt"}},
-						{{"start address", 13}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean amp"}},
-						{{"start address", 15}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms rt"}},
-						{{"start address", 17}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms amp"}},
-						{{"start address", 19}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp0"}},
-						{{"start address", 21}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
-						{{"start address", 23}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
-						{{"start address", 25}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "axial force"}}
-				};
-
-				json map_data;
-				if(socket.send_command("channel_attributes", map_data, {{"name", "mb_map"}})) {
-					if(is_json_array(map_data, "payload"))
-						map_data = map_data["payload"];
-					else
-						map_data = default_map_data;
-				}
-
-				/*
 				 * get channel_data
 				 */
 				json channel_data;
@@ -190,7 +164,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					if(is_json_object(channel_data, "payload")) {
 						const json payload = channel_data["payload"];
 
-						for(auto &element : map_data) {
+						for(auto &element : mb_register_map) {
 							try {
 								int start_address = element["start address"];
 								std::string type = element.value("type", "i16");
@@ -238,6 +212,24 @@ int main(int argc, char **argv){
 	std::string username = std::string(LOGIN_USER);
 	std::string password = std::string(LOGIN_HASH);
 
+	std::string map_file = "";
+
+	json mb_register_map = {
+			{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}},
+			{{"start address", 3}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
+			{{"start address", 5}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
+			{{"start address", 7}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
+			{{"start address", 9}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "stoerlevel"}},
+			{{"start address", 11}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean rt"}},
+			{{"start address", 13}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean amp"}},
+			{{"start address", 15}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms rt"}},
+			{{"start address", 17}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms amp"}},
+			{{"start address", 19}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp0"}},
+			{{"start address", 21}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
+			{{"start address", 23}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
+			{{"start address", 25}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "axial force"}}
+	};
+
 	/*
 	 * parse commandline options
 	 */
@@ -253,6 +245,7 @@ int main(int argc, char **argv){
 			("p,port", "connect to given port", cxxopts::value<std::string>(conn_port)->default_value(conn_port))
 			("username", "username used to connect", cxxopts::value<std::string>(username)->default_value(std::string(LOGIN_USER)))
 			("password", "plain text password used to connect", cxxopts::value<std::string>())
+			("map_file", "json encoded text file with Modbus mapping data", cxxopts::value<std::string>())
 			("suppress_syslog", "do not output syslog messages to stdout")
 			("o,listen", "modbus tcp listen port", cxxopts::value<int>(port))
 		;
@@ -301,6 +294,36 @@ int main(int argc, char **argv){
 	if(!std::numeric_limits<float>::is_iec559)
 		logfile.write(LOG_WARNING, "application wasn't compiled with IEEE 754 standard, floating point values may be out of standard");
 
+	if(map_file != "") {
+		std::ifstream file;
+		json file_data;
+		file.open(map_file);
+
+		if(file.is_open()) {
+			std::string str;
+			std::string file_contents;
+
+			while(std::getline(file, str)) {
+				file_contents += str;
+				file_contents.push_back('\n');
+			}
+
+			file.close();
+
+			try {
+				file_data = json::parse(file_contents);
+
+				if(file_data.is_array()) {
+					mb_register_map = file_data;
+				} else {
+					logfile.write(LOG_WARNING, "map_file loaded but invalid scheme");
+				}
+			} catch(const json::exception& e) {
+				logfile.write(LOG_WARNING, "map_file set but error loading map data: %s", e.what());
+			}
+		}
+	}
+
 	ctx = modbus_new_tcp("127.0.0.1", port);
 	query = (uint8_t*)malloc(MODBUS_TCP_MAX_ADU_LENGTH);
 	//int header_length = modbus_get_header_length(ctx);
@@ -338,7 +361,7 @@ int main(int argc, char **argv){
 	}
 
 	/* spawn aquire thread */ 
-	std::thread aquire_inst(data_aquisition, conn_target, conn_port, username, password, mb_mapping);
+	std::thread aquire_inst(data_aquisition, conn_target, conn_port, username, password, mb_register_map, mb_mapping);
 
 	/* Deamonize */
 	if(daemon) {
