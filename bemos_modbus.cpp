@@ -374,6 +374,7 @@ int main(int argc, char **argv){
 	bestsens::system_helper::systemd::ready();
 
 	while(1) {
+		logfile.write(LOG_DEBUG, "waiting for connection...");
 		modbus_tcp_accept(ctx, &s);
 
 		logfile.write(LOG_DEBUG, "client connected");
@@ -385,6 +386,7 @@ int main(int argc, char **argv){
 			} while (rc == 0);
 
 			if (rc == -1 && errno != EMBBADCRC) {
+				logfile.write(LOG_WARNING, "error on modbus connection");
 				/* Quit */
 				break;
 			}
