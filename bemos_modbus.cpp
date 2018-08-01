@@ -272,7 +272,7 @@ int main(int argc, char **argv){
 			("p,port", "connect to given port", cxxopts::value<std::string>(conn_port)->default_value(conn_port))
 			("username", "username used to connect", cxxopts::value<std::string>(username)->default_value(std::string(LOGIN_USER)))
 			("password", "plain text password used to connect", cxxopts::value<std::string>())
-			("map_file", "json encoded text file with Modbus mapping data", cxxopts::value<std::string>())
+			("map_file", "json encoded text file with Modbus mapping data", cxxopts::value<std::string>(map_file))
 			("suppress_syslog", "do not output syslog messages to stdout")
 			("o,listen", "modbus tcp listen port", cxxopts::value<int>(port))
 		;
@@ -311,6 +311,10 @@ int main(int argc, char **argv){
 		if(options.count("password")) {
 			password = bestsens::netHelper::sha512(options["password"].as<std::string>());
 		}
+
+		if(options.count("map_file")) {
+			logfile.write(LOG_INFO, "map file set to %s", map_file.c_str());
+		}
 	}
 
 	logfile.write(LOG_INFO, "starting bemos-modbus %s", APP_VERSION);
@@ -348,6 +352,8 @@ int main(int argc, char **argv){
 			} catch(const json::exception& e) {
 				logfile.write(LOG_WARNING, "map_file set but error loading map data: %s", e.what());
 			}
+		} else {
+			logfile.write(LOG_ERR, "map_file set but not found; using default map data");
 		}
 	}
 
