@@ -39,8 +39,11 @@ system_helper::LogManager logfile("bemos-modbus");
 #define USERID 1200
 #define GROUPID 880
 
+#define MB_REGISTER_SIZE 256
+
 std::atomic<bool> running{true};
 std::mutex mb_mapping_access_mtx;
+bool map_error_displayed[MB_REGISTER_SIZE] = {false};
 
 void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, const json& mb_register_map, modbus_mapping_t *mb_mapping) {
 	bestsens::loopTimer timer(std::chrono::seconds(2), 0);
@@ -100,8 +103,16 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 						mb_mapping->tab_input_registers[address_start] = htons(response);
 						mb_mapping->tab_input_bits[address_start] = 1;
+
+						map_error_displayed[address_start] = false;
 					} catch(const std::exception& e) {
-						logfile.write(LOG_WARNING, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						int log_level = LOG_DEBUG;
+						if(map_error_displayed[address_start] == false) {
+							log_level = LOG_ERR;
+							map_error_displayed[address_start] = true;
+						}
+						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+
 						mb_mapping->tab_input_registers[address_start] = 0x8000;
 						mb_mapping->tab_input_bits[address_start] = 0;
 					}
@@ -121,8 +132,16 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
 						mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
 						mb_mapping->tab_input_bits[address_start] = 1;
+
+						map_error_displayed[address_start] = false;
 					} catch(const std::exception& e) {
-						logfile.write(LOG_WARNING, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						int log_level = LOG_DEBUG;
+						if(map_error_displayed[address_start] == false) {
+							log_level = LOG_ERR;
+							map_error_displayed[address_start] = true;
+						}
+						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 						mb_mapping->tab_input_registers[address_start] = 0x8000;
 						mb_mapping->tab_input_registers[address_start+1] = 0x8000;
@@ -144,8 +163,16 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						mb_mapping->tab_input_registers[address_start] = htons(buff[1]);
 						mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
 						mb_mapping->tab_input_bits[address_start] = 1;
+
+						map_error_displayed[address_start] = false;
 					} catch(const std::exception& e) {
-						logfile.write(LOG_WARNING, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						int log_level = LOG_DEBUG;
+						if(map_error_displayed[address_start] == false) {
+							log_level = LOG_ERR;
+							map_error_displayed[address_start] = true;
+						}
+						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 						mb_mapping->tab_input_registers[address_start] = 0x8000;
 						mb_mapping->tab_input_registers[address_start+1] = 0x8000;
@@ -328,7 +355,7 @@ int main(int argc, char **argv){
 	query = (uint8_t*)malloc(MODBUS_TCP_MAX_ADU_LENGTH);
 	//int header_length = modbus_get_header_length(ctx);
 
-	mb_mapping = modbus_mapping_new(0, 256, 256, 256);
+	mb_mapping = modbus_mapping_new(0, MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE);
 
 	if (mb_mapping == NULL) {
 		logfile.write(LOG_CRIT, "Failed to allocate the mapping: %s", modbus_strerror(errno));
