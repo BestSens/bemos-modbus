@@ -205,8 +205,8 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 								} else {
 									addValue(start_address, payload, source, attribute);
 								}
-							} catch(...) {
-								logfile.write(LOG_WARNING, "error reading element of register map: %s", element.dump().c_str());
+							} catch(const std::exception& e) {
+								logfile.write(LOG_WARNING, "error reading element of register map: %s (%s)", element.dump().c_str(), e.what());
 								continue;
 							}
 						}
@@ -254,7 +254,8 @@ int main(int argc, char **argv){
 			{{"start address", 19}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp0"}},
 			{{"start address", 21}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
 			{{"start address", 23}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
-			{{"start address", 25}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "axial force"}}
+			{{"start address", 25}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "axial force"}},
+			{{"start address", 27}, {"type", "float"}, {"source", "ks_data"}, {"attribute", "effective value"}}
 	};
 
 	/*
