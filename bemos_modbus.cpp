@@ -45,7 +45,7 @@ std::atomic<bool> running{true};
 std::mutex mb_mapping_access_mtx;
 bool map_error_displayed[MB_REGISTER_SIZE] = {false};
 
-void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, const json& mb_register_map, modbus_mapping_t *mb_mapping) {
+void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, json mb_register_map, modbus_mapping_t *mb_mapping, bool has_map_file = false) {
 	bestsens::loopTimer timer(std::chrono::seconds(2), 0);
 	while(running) {
 		/*
@@ -181,6 +181,19 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 				};
 
 				/*
+				 * get register map from server when not loaded from file
+				 */
+				if(has_map_file == false) {
+					json channel_attributes;
+					if(socket.send_command("channel_attributes", channel_attributes, {{"name", "mb_register_map"}})) {
+						logfile.write(LOG_DEBUG, "mb_register_map: %s", channel_attributes.dump(2).c_str());
+
+						if(is_json_array(channel_attributes, "mb_register_map"))
+							mb_register_map = channel_attributes["mb_register_map"];
+					}
+				}
+
+				/*
 				 * get channel_data
 				 */
 				json channel_data;
@@ -230,6 +243,7 @@ int main(int argc, char **argv){
 	assert(running.is_lock_free());
 
 	bool daemon = false;
+	bool has_map_file = false;
 	int port = 502;
 
 	logfile.setMaxLogLevel(LOG_INFO);
@@ -347,6 +361,7 @@ int main(int argc, char **argv){
 
 				if(file_data.is_array()) {
 					mb_register_map = file_data;
+					has_map_file = true;
 				} else {
 					logfile.write(LOG_WARNING, "map_file loaded but invalid scheme");
 				}
@@ -395,7 +410,7 @@ int main(int argc, char **argv){
 	}
 
 	/* spawn aquire thread */ 
-	std::thread aquire_inst(data_aquisition, conn_target, conn_port, username, password, mb_register_map, mb_mapping);
+	std::thread aquire_inst(data_aquisition, conn_target, conn_port, username, password, mb_register_map, mb_mapping, has_map_file);
 
 	/* Deamonize */
 	if(daemon) {
