@@ -188,8 +188,8 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					if(socket.send_command("channel_attributes", channel_attributes, {{"name", "mb_register_map"}})) {
 						logfile.write(LOG_DEBUG, "mb_register_map: %s", channel_attributes.dump(2).c_str());
 
-						if(is_json_array(channel_attributes, "mb_register_map"))
-							mb_register_map = channel_attributes["mb_register_map"];
+						if(is_json_array(channel_attributes, "payload"))
+							mb_register_map = channel_attributes["payload"];
 					}
 				}
 
