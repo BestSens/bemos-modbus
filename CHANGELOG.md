@@ -1,4 +1,4 @@
-## 1.1.0 (unreleased)
+## 1.1.0 (17.09.2018)
 - move data aquisition to parallel thread to decrease response times and jitter
 - error state of registers is now indicated a 0x8000 in register and 0 in corresponding coil
 - add dynamic mapping of data to input registers via `map_file`
