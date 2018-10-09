@@ -1,4 +1,3 @@
-CFLAGS = -std=c11 -D_XOPEN_SOURCE=700 -DNDEBUG
 CPPFLAGS = -std=c++14 -DNDEBUG -I/usr/include/modbus
 LDFLAGS = -lm -lpthread -lcrypto -lmodbus
 
@@ -7,11 +6,9 @@ BIN = bemos_modbus
 
 all: $(BIN)
 
-debug: CFLAGS = -std=c11 -D_XOPEN_SOURCE=700 -DDEBUG -O0 -Wall -g
 debug: CPPFLAGS = -std=c++14 -DDEBUG -O0 -Wall -g
 debug: $(BIN)
 
-systemd: CFLAGS += -DENABLE_SYSTEMD_STATUS
 systemd: CPPFLAGS += -DENABLE_SYSTEMD_STATUS
 systemd: LDFLAGS += -lsystemd
 systemd: $(BIN)
