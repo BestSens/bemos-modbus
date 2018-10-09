@@ -55,6 +55,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			for(int i = 0; i <= mb_mapping->nb_input_registers; i++) {
 				mb_mapping->tab_input_registers[i] = 0x0000;
+				mb_mapping->tab_registers[i] = 0x0000;
 				mb_mapping->tab_input_bits[i] = 0;
 			}	
 		}
@@ -86,14 +87,14 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			continue;
 		}
 
-		logfile.write(LOG_INFO, "connected");
+		logfile.write(LOG_INFO, "connected to BeMoS");
 
 		try {
 			bestsens::loopTimer dataTimer(std::chrono::seconds(1), 0);
 			while(running) {
 				timer.wait_on_tick();
 
-				auto addValue = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
+				auto addValue_u16 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
 						if(oldness > 10)
@@ -102,6 +103,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						uint16_t response = source[source_name][value];
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 						mb_mapping->tab_input_registers[address_start] = htons(response);
+						mb_mapping->tab_registers[address_start] = htons(response);
 						mb_mapping->tab_input_bits[address_start] = 1;
 
 						map_error_displayed[address_start] = false;
@@ -114,11 +116,39 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
 
 						mb_mapping->tab_input_registers[address_start] = 0x8000;
+						mb_mapping->tab_registers[address_start] = 0x8000;
 						mb_mapping->tab_input_bits[address_start] = 0;
 					}
 				};
 
-				auto addValue32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
+				auto addValue_i16 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
+					try {
+						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
+						if(oldness > 10)
+							throw std::runtime_error("data too old");
+
+						int16_t response = source[source_name][value];
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+						mb_mapping->tab_input_registers[address_start] = htons(response);
+						mb_mapping->tab_registers[address_start] = htons(response);
+						mb_mapping->tab_input_bits[address_start] = 1;
+
+						map_error_displayed[address_start] = false;
+					} catch(const std::exception& e) {
+						int log_level = LOG_DEBUG;
+						if(map_error_displayed[address_start] == false) {
+							log_level = LOG_ERR;
+							map_error_displayed[address_start] = true;
+						}
+						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+
+						mb_mapping->tab_input_registers[address_start] = 0x8000;
+						mb_mapping->tab_registers[address_start] = 0x8000;
+						mb_mapping->tab_input_bits[address_start] = 0;
+					}
+				};
+
+				auto addValue_u32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
 						if(oldness > 10)
@@ -130,7 +160,9 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 						mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
+						mb_mapping->tab_registers[address_start] = (uint16_t)response;
 						mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
+						mb_mapping->tab_registers[address_start+1] = (uint16_t)(response >> 16);
 						mb_mapping->tab_input_bits[address_start] = 1;
 
 						map_error_displayed[address_start] = false;
@@ -144,7 +176,44 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 						mb_mapping->tab_input_registers[address_start] = 0x8000;
+						mb_mapping->tab_registers[address_start] = 0x8000;
 						mb_mapping->tab_input_registers[address_start+1] = 0x8000;
+						mb_mapping->tab_registers[address_start+1] = 0x8000;
+						mb_mapping->tab_input_bits[address_start] = 0;
+					}
+				};
+
+				auto addValue_i32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
+					try {
+						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
+						if(oldness > 10)
+							throw std::runtime_error("data too old");
+
+						int32_t response = source[source_name][value];
+
+						response = htonl(response);
+
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+						mb_mapping->tab_input_registers[address_start] = (int16_t)response;
+						mb_mapping->tab_registers[address_start] = (int16_t)response;
+						mb_mapping->tab_input_registers[address_start+1] = (int16_t)(response >> 16);
+						mb_mapping->tab_registers[address_start+1] = (int16_t)(response >> 16);
+						mb_mapping->tab_input_bits[address_start] = 1;
+
+						map_error_displayed[address_start] = false;
+					} catch(const std::exception& e) {
+						int log_level = LOG_DEBUG;
+						if(map_error_displayed[address_start] == false) {
+							log_level = LOG_ERR;
+							map_error_displayed[address_start] = true;
+						}
+						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+						mb_mapping->tab_input_registers[address_start] = 0x8000;
+						mb_mapping->tab_registers[address_start] = 0x8000;
+						mb_mapping->tab_input_registers[address_start+1] = 0x8000;
+						mb_mapping->tab_registers[address_start+1] = 0x8000;
 						mb_mapping->tab_input_bits[address_start] = 0;
 					}
 				};
@@ -161,7 +230,9 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 						mb_mapping->tab_input_registers[address_start] = htons(buff[1]);
+						mb_mapping->tab_registers[address_start] = htons(buff[1]);
 						mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
+						mb_mapping->tab_registers[address_start+1] = htons(buff[0]);
 						mb_mapping->tab_input_bits[address_start] = 1;
 
 						map_error_displayed[address_start] = false;
@@ -175,7 +246,9 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 						mb_mapping->tab_input_registers[address_start] = 0x8000;
+						mb_mapping->tab_registers[address_start] = 0x8000;
 						mb_mapping->tab_input_registers[address_start+1] = 0x8000;
+						mb_mapping->tab_registers[address_start+1] = 0x8000;
 						mb_mapping->tab_input_bits[address_start] = 0;
 					}
 				};
@@ -212,11 +285,17 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 								std::string attribute = element["attribute"];
 
 								if(type == "i32") {
-									addValue32(start_address, payload, source, attribute);
+									addValue_i32(start_address, payload, source, attribute);
+								} else if(type == "u32") {
+									addValue_u32(start_address, payload, source, attribute);
+								} else if(type == "i16") {
+									addValue_i16(start_address, payload, source, attribute);
+								} else if(type == "u16") {
+									addValue_u16(start_address, payload, source, attribute);
 								} else if(type == "float") {
 									addFloat(start_address, payload, source, attribute);
 								} else {
-									addValue(start_address, payload, source, attribute);
+									addValue_u16(start_address, payload, source, attribute);
 								}
 							} catch(const std::exception& e) {
 								logfile.write(LOG_WARNING, "error reading element of register map: %s (%s)", element.dump().c_str(), e.what());
