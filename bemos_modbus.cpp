@@ -39,7 +39,7 @@ system_helper::LogManager logfile("bemos-modbus");
 #define USERID 1200
 #define GROUPID 880
 
-#define MB_REGISTER_SIZE 256
+#define MB_REGISTER_SIZE 1024
 
 std::atomic<bool> running{true};
 std::mutex mb_mapping_access_mtx;
