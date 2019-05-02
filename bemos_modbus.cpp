@@ -54,8 +54,8 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 		{
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			for(int i = 0; i <= mb_mapping->nb_input_registers; i++) {
-				mb_mapping->tab_input_registers[i] = 0x0000;
-				mb_mapping->tab_registers[i] = 0x0000;
+				mb_mapping->tab_input_registers[i] = 0xFFFF;
+				mb_mapping->tab_registers[i] = 0xFFFF;
 				mb_mapping->tab_input_bits[i] = 0;
 			}	
 		}

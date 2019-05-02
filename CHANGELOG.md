@@ -1,4 +1,5 @@
 ## 1.1.1 (unreleased)
+- reset registers to 0xFFFF when empty
 
 ## 1.1.0 (17.09.2018)
 - move data aquisition to parallel thread to decrease response times and jitter
