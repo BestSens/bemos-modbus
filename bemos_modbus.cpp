@@ -159,10 +159,10 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						response = htonl(response);
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = (uint16_t)response;
-						mb_mapping->tab_registers[address_start] = (uint16_t)response;
-						mb_mapping->tab_input_registers[address_start+1] = (uint16_t)(response >> 16);
-						mb_mapping->tab_registers[address_start+1] = (uint16_t)(response >> 16);
+						mb_mapping->tab_input_registers[address_start] = htons((uint16_t)response);
+						mb_mapping->tab_registers[address_start] = htons((uint16_t)response);
+						mb_mapping->tab_input_registers[address_start+1] = htons((uint16_t)(response >> 16));
+						mb_mapping->tab_registers[address_start+1] = htons((uint16_t)(response >> 16));
 						mb_mapping->tab_input_bits[address_start] = 1;
 
 						map_error_displayed[address_start] = false;
@@ -194,10 +194,10 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						response = htonl(response);
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = (int16_t)response;
-						mb_mapping->tab_registers[address_start] = (int16_t)response;
-						mb_mapping->tab_input_registers[address_start+1] = (int16_t)(response >> 16);
-						mb_mapping->tab_registers[address_start+1] = (int16_t)(response >> 16);
+						mb_mapping->tab_input_registers[address_start] = htons((int16_t)response);
+						mb_mapping->tab_registers[address_start] = htons((int16_t)response);
+						mb_mapping->tab_input_registers[address_start+1] = htons((int16_t)(response >> 16));
+						mb_mapping->tab_registers[address_start+1] = htons((int16_t)(response >> 16));
 						mb_mapping->tab_input_bits[address_start] = 1;
 
 						map_error_displayed[address_start] = false;
@@ -229,10 +229,10 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = htons(buff[1]);
-						mb_mapping->tab_registers[address_start] = htons(buff[1]);
-						mb_mapping->tab_input_registers[address_start+1] = htons(buff[0]);
-						mb_mapping->tab_registers[address_start+1] = htons(buff[0]);
+						mb_mapping->tab_input_registers[address_start] = buff[1];
+						mb_mapping->tab_registers[address_start] = buff[1];
+						mb_mapping->tab_input_registers[address_start+1] = buff[0];
+						mb_mapping->tab_registers[address_start+1] = buff[0];
 						mb_mapping->tab_input_bits[address_start] = 1;
 
 						map_error_displayed[address_start] = false;
