@@ -102,8 +102,8 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 						uint16_t response = source[source_name][value];
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = htons(response);
-						mb_mapping->tab_registers[address_start] = htons(response);
+						mb_mapping->tab_input_registers[address_start] = response;
+						mb_mapping->tab_registers[address_start] = response;
 						mb_mapping->tab_input_bits[address_start] = 1;
 
 						map_error_displayed[address_start] = false;
@@ -129,8 +129,8 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 						int16_t response = source[source_name][value];
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = htons(response);
-						mb_mapping->tab_registers[address_start] = htons(response);
+						mb_mapping->tab_input_registers[address_start] = response;
+						mb_mapping->tab_registers[address_start] = response;
 						mb_mapping->tab_input_bits[address_start] = 1;
 
 						map_error_displayed[address_start] = false;
