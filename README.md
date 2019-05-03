@@ -35,3 +35,6 @@ Adressbereich 40001-49999
 | Start-Adresse | Datentyp      | Messwert               | Einheit |
 | ------------: | :-----------: | ---------------------- | ------- |
 | 4x0001        | uint16        | Externe Wellendrehzahl | RPM     |
+
+## Fehlerwerte
+Nicht gesetzte Register werden mit 0xFFFF initialisiert. Im Fehlerfall wird 0x8000 ausgegeben.
