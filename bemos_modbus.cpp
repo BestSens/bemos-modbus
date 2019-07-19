@@ -46,7 +46,7 @@ std::mutex mb_mapping_access_mtx;
 bool map_error_displayed[MB_REGISTER_SIZE] = {false};
 
 void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, json mb_register_map, modbus_mapping_t *mb_mapping, bool has_map_file = false) {
-	bestsens::loopTimer timer(std::chrono::seconds(2), 0);
+	bestsens::loopTimer timer(std::chrono::seconds(1), 0);
 	while(running) {
 		/*
 		 * set error flags and default values for mappings
