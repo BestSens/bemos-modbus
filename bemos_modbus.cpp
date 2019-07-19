@@ -91,6 +91,13 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 		try {
 			bestsens::loopTimer dataTimer(std::chrono::seconds(1), 0);
+
+			/*
+			 * register "external_data" algo
+			 */
+			json j;
+			socket.send_command("register_analysis", j, {{"name", "external_data"}});
+
 			while(running) {
 				timer.wait_on_tick();
 
@@ -307,6 +314,26 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						break;
 					}
 				}
+
+				/*
+				 * get external data
+				 */
+				json payload = {
+					{"name", "external_data"}
+				};
+				
+				{
+					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+
+					for(int i = 0; i <= 20; i++) {
+						uint16_t data = mb_mapping->tab_registers[100 + i];
+						mb_mapping->tab_input_registers[100 + i] = data;
+
+						payload["data"]["ext_" + std::to_string(i)] = data;
+					}
+				}
+
+				socket.send_command("new_data", j, payload);
 			}
 		} catch(...) {}
 	}
