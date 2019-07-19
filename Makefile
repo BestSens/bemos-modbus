@@ -1,4 +1,4 @@
-CPPFLAGS = -std=c++14 -DNDEBUG -I/usr/include/modbus
+CPPFLAGS = -std=c++14 -DNDEBUG -I${SDKTARGETSYSROOT}/usr/include/modbus
 LDFLAGS = -lm -lpthread -lcrypto -lmodbus
 
 OBJ = bemos_modbus.o
