@@ -3,6 +3,7 @@
 - get external_data from registers 100 to 120
 - update nlohmann/json library to v3.6.1 (https://github.com/nlohmann/json/releases/tag/v3.6.1)
 - update cxxopts library to v2.2.0 (https://github.com/jarro2783/cxxopts/releases/tag/v2.2.0)
+- update bone_helper submodule
 
 ## 1.1.0 (17.09.2018)
 - move data aquisition to parallel thread to decrease response times and jitter
