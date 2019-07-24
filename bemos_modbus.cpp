@@ -45,6 +45,13 @@ std::atomic<bool> running{true};
 std::mutex mb_mapping_access_mtx;
 bool map_error_displayed[MB_REGISTER_SIZE] = {false};
 
+namespace {
+	double getValueFloat(uint16_t data_0, uint16_t data_1) {
+		uint32_t data_32 = data_0 + (data_1 << 16);
+		return *reinterpret_cast<float*>(&data_32);
+	}
+}
+
 void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, json mb_register_map, modbus_mapping_t *mb_mapping, bool has_map_file = false) {
 	bestsens::loopTimer timer(std::chrono::seconds(1), 0);
 	while(running) {
