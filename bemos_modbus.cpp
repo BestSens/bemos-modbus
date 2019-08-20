@@ -332,7 +332,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 				{
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 
-					for(int i = 0; i <= 20; i++) {
+					for(int i = 0; i < 20; i++) {
 						uint16_t data = mb_mapping->tab_registers[100 + i];
 						mb_mapping->tab_input_registers[100 + i] = data;
 
