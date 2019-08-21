@@ -321,26 +321,31 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						break;
 					}
 				}
-
-				/*
-				 * get external data
-				 */
-				json payload = {
-					{"name", "external_data"}
-				};
 				
 				{
+					/*
+					 * get external data
+					 */
+					json payload = {
+						{"name", "external_data"}
+					};
+
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 
-					for(int i = 0; i < 20; i++) {
-						uint16_t data = mb_mapping->tab_registers[100 + i];
-						mb_mapping->tab_input_registers[100 + i] = data;
+					for(int i = 0; i < 40; i++) 
+						mb_mapping->tab_input_registers[100 + i] = mb_mapping->tab_registers[100 + i];
 
-						payload["data"]["ext_" + std::to_string(i)] = data;
+					for(int i = 0; i < 20; i++)
+						payload["data"]["ext_" + std::to_string(i + 1)] = getValueFloat(mb_mapping->tab_registers[101 + i * 2], mb_mapping->tab_registers[100 + i * 2]);
+
+					for(int i = 0; i < 32; i++) {
+						bool data = mb_mapping->tab_bits[i];
+
+						payload["data"]["coil_" + std::to_string(i + 1)] = data;
 					}
-				}
 
-				socket.send_command("new_data", j, payload);
+					socket.send_command("new_data", j, payload);
+				}
 			}
 		} catch(...) {}
 	}
@@ -490,7 +495,7 @@ int main(int argc, char **argv){
 	query = (uint8_t*)malloc(MODBUS_TCP_MAX_ADU_LENGTH);
 	//int header_length = modbus_get_header_length(ctx);
 
-	mb_mapping = modbus_mapping_new(0, MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE);
+	mb_mapping = modbus_mapping_new(MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE);
 
 	if (mb_mapping == NULL) {
 		logfile.write(LOG_CRIT, "Failed to allocate the mapping: %s", modbus_strerror(errno));
