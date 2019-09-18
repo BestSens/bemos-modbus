@@ -18,6 +18,7 @@
 #include <string>
 #include <mutex>
 #include <modbus.h>
+#include <arpa/inet.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 
@@ -351,6 +352,25 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 	}
 }
 
+std::string getHostname(modbus_t* ctx) {
+	char hostname[40];
+	
+	int sock_fd = modbus_get_socket(ctx);
+	struct sockaddr addr;
+	socklen_t addr_len = sizeof(addr);
+	getpeername(sock_fd, &addr, &addr_len);
+
+	if(addr.sa_family == AF_INET)
+		inet_ntop(AF_INET, &(reinterpret_cast<struct sockaddr_in *>(&addr))->sin_addr, hostname, 40);
+	else if (addr.sa_family == AF_INET6)
+		inet_ntop(AF_INET6, &(reinterpret_cast<struct sockaddr_in6 *>(&addr))->sin6_addr, hostname, 40);
+	else {
+		throw std::runtime_error("Unknown socket type passed to worker()");
+	}
+
+	return std::string(hostname);
+}
+
 int main(int argc, char **argv){
 	modbus_mapping_t *mb_mapping;
 	uint8_t *query;
@@ -541,10 +561,14 @@ int main(int argc, char **argv){
 	bestsens::system_helper::systemd::ready();
 
 	while(1) {
-		logfile.write(LOG_DEBUG, "waiting for connection...");
+		logfile.write(LOG_INFO, "waiting for connection...");
 		modbus_tcp_accept(ctx, &s);
 
-		logfile.write(LOG_DEBUG, "client connected");
+		try {
+			logfile.write(LOG_INFO, "client connected from %s", getHostname(ctx).c_str());
+		} catch(...) {
+			logfile.write(LOG_INFO, "client connected");
+		}
 
 		while(1) {
 			do {
