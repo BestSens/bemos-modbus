@@ -553,7 +553,12 @@ int main(int argc, char **argv){
 			} while (rc == 0);
 
 			if (rc == -1 && errno != EMBBADCRC) {
-				logfile.write(LOG_WARNING, "error on modbus connection");
+				int prio = LOG_ERR;
+
+				if(errno == ECONNRESET)
+					prio = LOG_WARNING;
+
+				logfile.write(prio, "modbus connection closed: %s", std::strerror(errno));
 				/* Quit */
 				break;
 			}
