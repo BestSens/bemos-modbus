@@ -4,6 +4,7 @@
 - update nlohmann/json library to v3.7.0 (https://github.com/nlohmann/json/releases/tag/v3.7.0)
 - update cxxopts library to v2.2.0 (https://github.com/jarro2783/cxxopts/releases/tag/v2.2.0)
 - update bone_helper submodule
+- allow configuration of connection timeout
 
 ## 1.1.0 (17.09.2018)
 - move data aquisition to parallel thread to decrease response times and jitter

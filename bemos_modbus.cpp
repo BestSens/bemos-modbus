@@ -383,6 +383,7 @@ int main(int argc, char **argv){
 	bool daemon = false;
 	bool has_map_file = false;
 	int port = 502;
+	int mb_to_usec = 500000;
 
 	logfile.setMaxLogLevel(LOG_INFO);
 
@@ -428,6 +429,7 @@ int main(int argc, char **argv){
 			("map_file", "json encoded text file with Modbus mapping data", cxxopts::value<std::string>(map_file))
 			("suppress_syslog", "do not output syslog messages to stdout")
 			("o,listen", "modbus tcp listen port", cxxopts::value<int>(port))
+			("t,timeout", "modbus tcp timeout in us", cxxopts::value<int>(mb_to_usec))
 		;
 
 		try {
@@ -463,6 +465,10 @@ int main(int argc, char **argv){
 
 			if(result.count("map_file")) {
 				logfile.write(LOG_INFO, "map file set to %s", map_file.c_str());
+			}
+
+			if(result.count("timeout")) {
+				logfile.write(LOG_INFO, "modbus timeout set to %d us", mb_to_usec);
 			}
 		} catch(const std::exception& e) {
 			logfile.write(LOG_CRIT, "%s", e.what());
@@ -514,6 +520,12 @@ int main(int argc, char **argv){
 	ctx = modbus_new_tcp("127.0.0.1", port);
 	query = (uint8_t*)malloc(MODBUS_TCP_MAX_ADU_LENGTH);
 	//int header_length = modbus_get_header_length(ctx);
+
+	/* set timeout */
+	struct timeval response_timeout;
+	response_timeout.tv_sec = 0;
+	response_timeout.tv_usec = mb_to_usec;
+	modbus_set_response_timeout(ctx, &response_timeout);
 
 	mb_mapping = modbus_mapping_new(MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE);
 
