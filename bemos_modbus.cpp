@@ -572,7 +572,7 @@ int main(int argc, char **argv){
 
 	bestsens::system_helper::systemd::ready();
 
-	while(1) {
+	while(running) {
 		logfile.write(LOG_INFO, "waiting for connection...");
 		modbus_tcp_accept(ctx, &s);
 
@@ -588,25 +588,18 @@ int main(int argc, char **argv){
 				/* Filtered queries return 0 */
 			} while (rc == 0);
 
-			if (rc == -1 && errno != EMBBADCRC) {
-				int prio = LOG_ERR;
-
-				if(errno == ECONNRESET)
-					prio = LOG_WARNING;
-
-				logfile.write(prio, "modbus connection closed: %s", std::strerror(errno));
-				/* Quit */
-				break;
+			if (rc == -1) {
+				if (errno != EMBBADDATA)
+					break;
 			}
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			rc = modbus_reply(ctx, query, rc, mb_mapping);
-			if (rc == -1) {
+			if (rc == -1) 
 				break;
-			}
 		}
 
-		logfile.write(LOG_DEBUG, "client disconnected");
+		logfile.write(LOG_WARNING, "modbus connection closed: %s", std::strerror(errno));
 	}
 
 	running = false;
