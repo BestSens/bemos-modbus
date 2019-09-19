@@ -590,13 +590,13 @@ int main(int argc, char **argv){
 
 			if (rc == -1) {
 				if (errno != EMBBADDATA)
-					break;
+					return EXIT_FAILURE;
 			}
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			rc = modbus_reply(ctx, query, rc, mb_mapping);
 			if (rc == -1) 
-				break;
+				return EXIT_FAILURE;
 		}
 
 		logfile.write(LOG_WARNING, "modbus connection closed: %s", std::strerror(errno));
