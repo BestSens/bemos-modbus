@@ -163,10 +163,10 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					}
 				};
 
-				auto addValue_u32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
+				auto addValue_u32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
-						if(oldness > 10)
+						if(oldness > 10 && !ignore_oldness)
 							throw std::runtime_error("data too old");
 
 						uint32_t response = source[source_name][value];
@@ -198,10 +198,10 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					}
 				};
 
-				auto addValue_i32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
+				auto addValue_i32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
-						if(oldness > 10)
+						if(oldness > 10 && !ignore_oldness)
 							throw std::runtime_error("data too old");
 
 						int32_t response = source[source_name][value];
@@ -233,10 +233,10 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					}
 				};
 
-				auto addFloat = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
+				auto addFloat = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
-						if(oldness > 10)
+						if(oldness > 10 && !ignore_oldness)
 							throw std::runtime_error("data too old");
 
 						float response = source[source_name][value];
@@ -298,19 +298,20 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 								std::string type = element.value("type", "i16");
 								std::string source = element.value("source", "channel_data");
 								std::string attribute = element["attribute"];
+								bool ignore_oldness = element.value("ignore oldness", false);
 
 								if(type == "i32") {
-									addValue_i32(start_address, payload, source, attribute);
+									addValue_i32(start_address, payload, source, attribute, ignore_oldness);
 								} else if(type == "u32") {
-									addValue_u32(start_address, payload, source, attribute);
+									addValue_u32(start_address, payload, source, attribute, ignore_oldness);
 								} else if(type == "i16") {
-									addValue_i16(start_address, payload, source, attribute);
+									addValue_i16(start_address, payload, source, attribute, ignore_oldness);
 								} else if(type == "u16") {
-									addValue_u16(start_address, payload, source, attribute);
+									addValue_u16(start_address, payload, source, attribute, ignore_oldness);
 								} else if(type == "float") {
-									addFloat(start_address, payload, source, attribute);
+									addFloat(start_address, payload, source, attribute, ignore_oldness);
 								} else {
-									addValue_u16(start_address, payload, source, attribute);
+									addValue_u16(start_address, payload, source, attribute, ignore_oldness);
 								}
 							} catch(const std::exception& e) {
 								logfile.write(LOG_WARNING, "error reading element of register map: %s (%s)", element.dump().c_str(), e.what());
