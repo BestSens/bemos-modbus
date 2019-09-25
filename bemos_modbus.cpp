@@ -334,13 +334,13 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 
-					for(int i = 0; i < 40; i++) 
+					for(int i = 0; i < 64; i++) 
 						mb_mapping->tab_input_registers[100 + i] = mb_mapping->tab_registers[100 + i];
 
-					for(int i = 0; i < 20; i++)
+					for(int i = 0; i < 32; i++)
 						payload["data"]["ext_" + std::to_string(i + 1)] = getValueFloat(mb_mapping->tab_registers[101 + i * 2], mb_mapping->tab_registers[100 + i * 2]);
 
-					for(int i = 0; i < 32; i++) {
+					for(int i = 0; i < 64; i++) {
 						bool data = mb_mapping->tab_bits[i];
 
 						payload["data"]["coil_" + std::to_string(i + 1)] = data;
