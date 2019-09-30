@@ -109,10 +109,10 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			while(running) {
 				timer.wait_on_tick();
 
-				auto addValue_u16 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
+				auto addValue_u16 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
-						if(oldness > 10)
+						if(oldness > 10 && !ignore_oldness)
 							throw std::runtime_error("data too old");
 
 						uint16_t response = source[source_name][value];
@@ -136,10 +136,10 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					}
 				};
 
-				auto addValue_i16 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value) {
+				auto addValue_i16 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
-						if(oldness > 10)
+						if(oldness > 10 && !ignore_oldness)
 							throw std::runtime_error("data too old");
 
 						int16_t response = source[source_name][value];
@@ -409,7 +409,14 @@ int main(int argc, char **argv){
 			{{"start address", 21}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
 			{{"start address", 23}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
 			{{"start address", 25}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "axial force"}},
-			{{"start address", 27}, {"type", "float"}, {"source", "ks_data"}, {"attribute", "effective value"}}
+			{{"start address", 27}, {"type", "float"}, {"source", "ks_data_0"}, {"attribute", "effective value"}, {"ignore oldness", true}},
+			{{"start address", 29}, {"type", "float"}, {"source", "ks_data_1"}, {"attribute", "effective value"}, {"ignore oldness", true}},
+			{{"start address", 31}, {"type", "float"}, {"source", "ks_data_2"}, {"attribute", "effective value"}, {"ignore oldness", true}},
+			{{"start address", 33}, {"type", "float"}, {"source", "ks_data_3"}, {"attribute", "effective value"}, {"ignore oldness", true}},
+			{{"start address", 35}, {"type", "float"}, {"source", "ks_data_4"}, {"attribute", "effective value"}, {"ignore oldness", true}},
+			{{"start address", 37}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "effective value"}, {"ignore oldness", true}},
+			{{"start address", 39}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "effective value"}, {"ignore oldness", true}},
+			{{"start address", 41}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "effective value"}, {"ignore oldness", true}}
 	};
 
 	/*
