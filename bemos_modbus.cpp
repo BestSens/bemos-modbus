@@ -530,10 +530,15 @@ int main(int argc, char **argv){
 	//int header_length = modbus_get_header_length(ctx);
 
 	/* set timeout */
-	struct timeval response_timeout;
-	response_timeout.tv_sec = 0;
-	response_timeout.tv_usec = mb_to_usec;
-	modbus_set_response_timeout(ctx, &response_timeout);
+	// add compatibility to newer modbus versions
+	#if LIBMODBUS_VERSION_CHECK(3, 1, 0)
+		modbus_set_response_timeout(ctx, 0, mb_to_usec);
+	#else
+		struct timeval response_timeout;
+		response_timeout.tv_sec = 0;
+		response_timeout.tv_usec = mb_to_usec;
+		modbus_set_response_timeout(ctx, &response_timeout);
+	#endif
 
 	mb_mapping = modbus_mapping_new(MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE);
 
