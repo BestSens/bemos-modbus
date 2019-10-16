@@ -83,16 +83,14 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 		 * connect to socket
 		 */
 		if(socket.connect()) {
-			logfile.write(LOG_CRIT, "connection failed");
-			continue;
+			throw std::runtime_error("connection failed");
 		}
 
 		/*
 		 * login if enabled
 		 */
 		if(!socket.login(username, password)) {
-			logfile.write(LOG_CRIT, "login failed");
-			continue;
+			throw std::runtime_error("login failed");
 		}
 
 		logfile.write(LOG_INFO, "connected to BeMoS");
