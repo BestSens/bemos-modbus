@@ -408,7 +408,7 @@ int main(int argc, char **argv){
 	int port = 502;
 	int mb_to_usec = 500000;
 
-	unsigned int coil_amount = 128;
+	unsigned int coil_amount = 136;
 	unsigned int ext_amount = 32;
 
 	logfile.setMaxLogLevel(LOG_INFO);
