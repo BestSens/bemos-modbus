@@ -606,22 +606,24 @@ int main(int argc, char **argv){
 			logfile.write(LOG_INFO, "client connected");
 		}
 
-		while(1) {
+		while(running) {
 			do {
 				rc = modbus_receive(ctx, query);
 				/* Filtered queries return 0 */
-			} while (rc == 0);
+			} while (rc == 0 && running);
 
 			if (rc == -1) {
 				if (errno != EMBBADDATA)
-					return EXIT_FAILURE;
+					break;
 			}
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			rc = modbus_reply(ctx, query, rc, mb_mapping);
 			if (rc == -1) 
-				return EXIT_FAILURE;
+				break;
 		}
+
+		close(modbus_get_socket(ctx));
 
 		logfile.write(LOG_WARNING, "modbus connection closed: %s", std::strerror(errno));
 	}

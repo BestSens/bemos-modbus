@@ -1,4 +1,5 @@
 ## 1.1.2 (unreleased)
+- better handling of disconnection on modbus socket
 
 ## 1.1.1 (21.11.2019)
 - reset registers to 0xFFFF when empty
