@@ -18,6 +18,8 @@
 #include <string>
 #include <mutex>
 #include <modbus.h>
+#include <signal.h>
+#include <execinfo.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -50,6 +52,22 @@ namespace {
 	double getValueFloat(uint16_t data_0, uint16_t data_1) {
 		uint32_t data_32 = data_0 + (data_1 << 16);
 		return *reinterpret_cast<float*>(&data_32);
+	}
+
+	void crash_handler(int sig) {
+		void *array[30];
+		size_t size;
+
+		// get void*'s for all entries on the stack
+		size = backtrace(array, 30);
+
+		// print out all the frames to stderr
+		fprintf(stderr, "<2>Critical Error: signal %d\n", sig);
+		backtrace_symbols_fd(array, size, STDERR_FILENO);
+
+		signal(SIGABRT, SIG_DFL);
+		
+		exit(EXIT_FAILURE);
 	}
 }
 
@@ -378,6 +396,12 @@ int main(int argc, char **argv){
 	int rc;
 
 	assert(running.is_lock_free());
+
+	struct sigaction crash_action;
+	memset(&crash_action, 0, sizeof(struct sigaction));
+	crash_action.sa_handler = crash_handler;
+	sigaction(SIGSEGV, &crash_action, NULL);
+	sigaction(SIGABRT, &crash_action, NULL);
 
 	bool daemon = false;
 	bool has_map_file = false;
