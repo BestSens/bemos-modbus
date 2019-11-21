@@ -1,6 +1,7 @@
-## 1.1.2 (unreleased)
+## 2.0.0 (unreleased)
 - better handling of disconnection on modbus socket
 - add crash handler for core dumps
+- server can now handle multiple connections
 
 ## 1.1.1 (21.11.2019)
 - reset registers to 0xFFFF when empty

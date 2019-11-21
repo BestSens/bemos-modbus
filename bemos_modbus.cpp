@@ -43,6 +43,7 @@ system_helper::LogManager logfile("bemos-modbus");
 #define GROUPID 880
 
 #define MB_REGISTER_SIZE 1024
+#define NB_CONNECTION 10
 
 std::atomic<bool> running{true};
 std::mutex mb_mapping_access_mtx;
@@ -390,10 +391,8 @@ std::string getHostname(modbus_t* ctx) {
 
 int main(int argc, char **argv){
 	modbus_mapping_t *mb_mapping;
-	uint8_t *query;
 	modbus_t *ctx;
 	int s = -1;
-	int rc;
 
 	assert(running.is_lock_free());
 
@@ -561,7 +560,6 @@ int main(int argc, char **argv){
 	}
 
 	ctx = modbus_new_tcp("127.0.0.1", port);
-	query = (uint8_t*)malloc(MODBUS_TCP_MAX_ADU_LENGTH);
 	//int header_length = modbus_get_header_length(ctx);
 
 	/* set timeout */
@@ -583,12 +581,11 @@ int main(int argc, char **argv){
 		return EXIT_FAILURE;
 	}
 
-	s = modbus_tcp_listen(ctx, 1);
+	s = modbus_tcp_listen(ctx, NB_CONNECTION);
 
 	if(s == -1) {
 		logfile.write(LOG_CRIT, "cannot reserve port %d, exiting", port);
 		modbus_mapping_free(mb_mapping);
-		free(query);
 		/* For RTU */
 		modbus_close(ctx);
 		modbus_free(ctx);
@@ -618,38 +615,82 @@ int main(int argc, char **argv){
 		logfile.write(LOG_DEBUG, "skipped daemonizing");
 	}
 
+	int master_socket;
+	fd_set refset;
+	fd_set rdset;
+	/* Maximum file descriptor number */
+	int fdmax;
+
+	/* Clear the reference set of socket */
+	FD_ZERO(&refset);
+	/* Add the server socket */
+	FD_SET(s, &refset);
+
+	/* Keep track of the max file descriptor */
+	fdmax = s;
+
 	bestsens::system_helper::systemd::ready();
 
-	while(running) {
-		logfile.write(LOG_INFO, "waiting for connection...");
-		modbus_tcp_accept(ctx, &s);
+	logfile.write(LOG_INFO, "waiting for connection...");
 
-		try {
-			logfile.write(LOG_INFO, "client connected from %s", getHostname(ctx).c_str());
-		} catch(...) {
-			logfile.write(LOG_INFO, "client connected");
+	while(running) {
+		rdset = refset;
+
+		if (select(fdmax+1, &rdset, NULL, NULL, NULL) == -1) {
+			logfile.write(LOG_WARNING, "error: select() failure");
+			break;
 		}
 
-		while(running) {
-			do {
-				rc = modbus_receive(ctx, query);
-				/* Filtered queries return 0 */
-			} while (rc == 0 && running);
-
-			if (rc == -1) {
-				if (errno != EMBBADDATA)
-					break;
+		for (master_socket = 0; master_socket <= fdmax; master_socket++) {
+			if (!FD_ISSET(master_socket, &rdset)) {
+			    continue;
 			}
 
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			rc = modbus_reply(ctx, query, rc, mb_mapping);
-			if (rc == -1) 
-				break;
+			if(master_socket == s) {
+				socklen_t addrlen;
+				struct sockaddr_in clientaddr;
+
+				addrlen = sizeof(clientaddr);
+				memset(&clientaddr, 0, sizeof(clientaddr));
+				int newfd = accept(s, (struct sockaddr *)&clientaddr, &addrlen);
+
+				if (newfd == -1) {
+					logfile.write(LOG_WARNING, "error: accept() failure");
+				} else {
+					FD_SET(newfd, &refset);
+
+					if (newfd > fdmax) {
+						/* Keep track of the maximum */
+						fdmax = newfd;
+					}
+
+					try {
+						logfile.write(LOG_INFO, "[0x%02X] client connected from %s:%d", newfd, inet_ntoa(clientaddr.sin_addr), clientaddr.sin_port);
+					} catch(...) {
+						logfile.write(LOG_INFO, "[0x%02X] client connected", newfd);
+					}
+				}
+			} else {
+				uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
+				modbus_set_socket(ctx, master_socket);
+				int rc = modbus_receive(ctx, query);
+
+				if (rc > 0) {
+					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+					rc = modbus_reply(ctx, query, rc, mb_mapping);
+				} else if (rc == -1) {
+					logfile.write(LOG_WARNING, "[0x%02X] modbus connection closed: %s", master_socket, std::strerror(errno));
+					close(master_socket);
+
+					/* Remove from reference set */
+					FD_CLR(master_socket, &refset);
+
+					if (master_socket == fdmax) {
+						fdmax--;
+					}
+				}
+			}
 		}
-
-		close(modbus_get_socket(ctx));
-
-		logfile.write(LOG_WARNING, "modbus connection closed: %s", std::strerror(errno));
 	}
 
 	running = false;
@@ -659,7 +700,6 @@ int main(int argc, char **argv){
 
 	close(s);
 	modbus_mapping_free(mb_mapping);
-	free(query);
 	/* For RTU */
 	modbus_close(ctx);
 	modbus_free(ctx);
