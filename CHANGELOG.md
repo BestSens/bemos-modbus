@@ -1,3 +1,5 @@
+## 1.1.2 (unreleased)
+
 ## 1.1.1 (21.11.2019)
 - reset registers to 0xFFFF when empty
 - get external_data from registers 100 to 120
