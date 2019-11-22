@@ -1,13 +1,15 @@
-CPPFLAGS = -std=c++14 -DNDEBUG -I${SDKTARGETSYSROOT}/usr/include/modbus
+ifndef DEBUG
+	CPPFLAGS = -std=c++14 -O2 -DNDEBUG -I${SDKTARGETSYSROOT}/usr/include/modbus
+else
+	CPPFLAGS = -std=c++14 -O0 -DDEBUG -I${SDKTARGETSYSROOT}/usr/include/modbus -Wall -g -rdynamic
+endif
+
 LDFLAGS = -lm -lpthread -lcrypto -lmodbus
 
 OBJ = bemos_modbus.o
 BIN = bemos_modbus
 
 all: $(BIN)
-
-debug: CPPFLAGS = -std=c++14 -DDEBUG -O0 -Wall -g
-debug: $(BIN)
 
 systemd: CPPFLAGS += -DENABLE_SYSTEMD_STATUS
 systemd: LDFLAGS += -lsystemd
