@@ -22,6 +22,7 @@
 #include <execinfo.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 
 #include "version.hpp"
