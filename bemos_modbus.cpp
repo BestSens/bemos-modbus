@@ -441,7 +441,8 @@ int main(int argc, char **argv){
 			{{"start address", 35}, {"type", "float"}, {"source", "ks_data_4"}, {"attribute", "effective value"}, {"ignore oldness", true}},
 			{{"start address", 37}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "effective value"}, {"ignore oldness", true}},
 			{{"start address", 39}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-			{{"start address", 41}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "effective value"}, {"ignore oldness", true}}
+			{{"start address", 41}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "effective value"}, {"ignore oldness", true}},
+			{{"start address", 43}, {"type", "i16"}, {"source", "channel_data"}, {"attribute", "clear_lock"}}
 	};
 
 	/*
