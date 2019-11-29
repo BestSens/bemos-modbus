@@ -74,7 +74,7 @@ namespace {
 }
 
 void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, json mb_register_map, modbus_mapping_t *mb_mapping, bool has_map_file, unsigned int coil_amount, unsigned int ext_amount) {
-	bestsens::loopTimer timer(std::chrono::seconds(1), 0);
+	bestsens::loopTimer timer(std::chrono::seconds(5), 0);
 	while(running) {
 		/*
 		 * set error flags and default values for mappings
@@ -125,7 +125,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			socket.send_command("register_analysis", j, {{"name", "external_data"}});
 
 			while(running) {
-				timer.wait_on_tick();
+				dataTimer.wait_on_tick();
 
 				auto addValue_u16 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
