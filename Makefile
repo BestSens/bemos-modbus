@@ -32,6 +32,10 @@ systemd: $(BIN)
 gitrev.hpp:
 	@echo -n "#define APP_VERSION_GITREV " > $@
 	@git rev-parse --verify --short=8 HEAD >> $@
+ifndef APP_VERSION_BRANCH
+	@echo -n "#define APP_VERSION_BRANCH " >> $@
+	@git rev-parse --abbrev-ref HEAD >> $@
+endif
 
 version.o: version.cpp gitrev.hpp
 	$(CXX) -c $(CPPFLAGS) $< -o $@
