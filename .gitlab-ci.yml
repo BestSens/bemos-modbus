@@ -17,7 +17,7 @@ build:arm:
             - bemos_modbus
     script:
         - source /opt/boneos/2.0.3/environment-setup-cortexa9hf-vfp-neon-poky-linux-gnueabi
-        - make systemd
+        - make systemd STRIP=true
 
 build:i686:
     before_script:
@@ -31,7 +31,7 @@ build:i686:
             - bemos_modbus
             - Dockerfile
     script:
-        - make
+        - make STRIP=true
 
 deploy:arm:
     stage: deploy
