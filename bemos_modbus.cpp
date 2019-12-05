@@ -476,7 +476,11 @@ int main(int argc, char **argv){
 			}
 
 			if(result.count("version")) {
-				std::cout << "bemos-modbus version: " << APP_VERSION << std::endl;
+				std::cout << "bemos-modbus version: " << app_version() << std::endl;
+
+				if(result.count("verbose"))
+					std::cout << "compiled @ " << app_compile_date() << std::endl;
+
 				return EXIT_SUCCESS;
 			}
 
@@ -517,7 +521,7 @@ int main(int argc, char **argv){
 	if(ext_amount > (MB_REGISTER_SIZE - 100) / 2)
 		ext_amount = (MB_REGISTER_SIZE - 100) / 2;
 
-	logfile.write(LOG_INFO, "starting bemos-modbus %s", APP_VERSION);
+	logfile.write(LOG_INFO, "starting bemos-modbus %s", app_version().c_str());
 	logfile.write(LOG_INFO, "generating %u coils", coil_amount);
 	logfile.write(LOG_INFO, "generating %u ext values", ext_amount);
 

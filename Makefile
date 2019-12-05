@@ -1,36 +1,45 @@
+LDFLAGS = -lm -lcrypto -lmodbus
+CPPFLAGS = -std=c++14 -I${SDKTARGETSYSROOT}/usr/include/modbus -MMD -MP -pthread
+
 ifndef DEBUG
-	CPPFLAGS = -std=c++14 -O2 -DNDEBUG -I${SDKTARGETSYSROOT}/usr/include/modbus
+	CPPFLAGS += -O2 -DNDEBUG
 else
-	CPPFLAGS = -std=c++14 -O0 -DDEBUG -I${SDKTARGETSYSROOT}/usr/include/modbus -Wall -g -rdynamic
+	CPPFLAGS += -O1 -DDEBUG -Wall -g -rdynamic -funwind-tables -fno-inline
 endif
 
-LDFLAGS = -lm -lpthread -lcrypto -lmodbus
+ifdef STRIP
+	LDFLAGS += -s
+endif
 
-OBJ = bemos_modbus.o
+ifdef APP_VERSION_BRANCH
+	CPPFLAGS += -DAPP_VERSION_BRANCH=$(APP_VERSION_BRANCH)
+endif
+
+OBJ = bemos_modbus.o version.o
 BIN = bemos_modbus
 
-all: $(BIN)
+DEPFILES := $(OBJ:.o=.d)
+
+$(BIN): $(OBJ)
+	$(CXX) $(CPPFLAGS) -o $@ $(OBJ) $(LDFLAGS)
 
 systemd: CPPFLAGS += -DENABLE_SYSTEMD_STATUS
 systemd: LDFLAGS += -lsystemd
 systemd: $(BIN)
 
-.PHONY: clean
+.PHONY: clean systemd gitrev.hpp
 
-$(BIN): $(OBJ)
-	$(CXX) $(CPPFLAGS) -o $@ $(OBJ) $(LDFLAGS)
-
-gitrev.hpp: FORCE
+gitrev.hpp:
 	@echo -n "#define APP_VERSION_GITREV " > $@
 	@git rev-parse --verify --short=8 HEAD >> $@
 
-FORCE:
+version.o: version.cpp gitrev.hpp
+	$(CXX) -c $(CPPFLAGS) $< -o $@
 
-gitrev.hpp.md5: gitrev.hpp
-	@md5sum $< | cmp -s $@ -; if test $$? -ne 0; then md5sum $< > $@; fi
+%.o: %.cpp
+	$(CXX) -c $(CPPFLAGS) $< -o $@
 
-bemos_modbus.o: bemos_modbus.cpp version.hpp libs/bone_helper/system_helper.hpp libs/json/single_include/nlohmann/json.hpp libs/cxxopts/include/cxxopts.hpp gitrev.hpp.md5
-	$(CXX) $(CPPFLAGS) -c $<
+-include $(DEPFILES)
 
 clean:
-	rm -f $(BIN) $(OBJ) gitrev.hpp gitrev.hpp.md5
+	rm -f $(BIN) $(OBJ) gitrev.hpp
