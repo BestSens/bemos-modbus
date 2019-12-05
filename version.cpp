@@ -13,28 +13,35 @@
 #define APP_STR_EXP(__A)	#__A
 #define APP_STR(__A)		APP_STR_EXP(__A)
 
-#if defined(APP_VERSION_BRANCH) && defined(APP_VERSION_GITREV)
-#ifdef DEBUG
-#define APP_VERSION			APP_STR(APP_VERSION_MAJOR) "." APP_STR(APP_VERSION_MINOR) "." APP_STR(APP_VERSION_PATCH) "-" APP_STR(APP_VERSION_BRANCH) APP_STR(APP_VERSION_GITREV) "-dbg"
-#else
-#define APP_VERSION			APP_STR(APP_VERSION_MAJOR) "." APP_STR(APP_VERSION_MINOR) "." APP_STR(APP_VERSION_PATCH) "-" APP_STR(APP_VERSION_BRANCH) APP_STR(APP_VERSION_GITREV)
-#endif
-#else
-#define APP_VERSION			APP_STR(APP_VERSION_MAJOR) "." APP_STR(APP_VERSION_MINOR) "." APP_STR(APP_VERSION_PATCH)
-#endif
-
-std::string app_version() {
-	return std::string(APP_VERSION);
-}
-
-std::string app_compile_date() {
-	return std::string(__DATE__) + " " + std::string(__TIME__);
-}
+const std::string version = std::string(APP_STR(APP_VERSION_MAJOR)) + "." + 
+							std::string(APP_STR(APP_VERSION_MINOR)) + "." + 
+							std::string(APP_STR(APP_VERSION_PATCH));
+const std::string branch = std::string(APP_STR(APP_VERSION_BRANCH));
+const std::string revision = std::string(APP_STR(APP_VERSION_GITREV));
 
 bool app_is_dev() {
-#ifdef APP_VERSION_BRANCH
+	return branch != "master";
+}
+
+bool app_is_debug() {
+#ifdef DEBUG
 	return true;
 #else
 	return false;
 #endif
+}
+
+std::string app_version() {
+	if(app_is_dev()) {
+		if(app_is_debug())
+			return version + "-" + branch + revision + "-dbg";
+		else
+			return version + "-" + branch + revision;
+	}
+
+	return version;
+}
+
+std::string app_compile_date() {
+	return std::string(__DATE__) + " " + std::string(__TIME__);
 }

@@ -6,5 +6,6 @@
 std::string app_version();
 std::string app_compile_date();
 bool app_is_dev();
+bool app_is_debug();
 
 #endif /* VERSION_HPP_ */
