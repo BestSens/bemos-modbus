@@ -12,7 +12,7 @@ ifdef STRIP
 endif
 
 ifdef APP_VERSION_BRANCH
-	CPPFLAGS += -DAPP_VERSION_BRANCH=$(APP_VERSION_BRANCH)
+	DAPP_VERSION_BRANCH = "-DAPP_VERSION_BRANCH=$(APP_VERSION_BRANCH)"
 endif
 
 OBJ = bemos_modbus.o version.o
@@ -38,7 +38,7 @@ ifndef APP_VERSION_BRANCH
 endif
 
 version.o: version.cpp gitrev.hpp
-	$(CXX) -c $(CPPFLAGS) $< -o $@
+	$(CXX) -c $(CPPFLAGS) $(DAPP_VERSION_BRANCH) $< -o $@
 
 %.o: %.cpp
 	$(CXX) -c $(CPPFLAGS) $< -o $@
