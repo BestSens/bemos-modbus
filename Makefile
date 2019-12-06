@@ -15,6 +15,10 @@ ifdef APP_VERSION_BRANCH
 	DAPP_VERSION_BRANCH = -DAPP_VERSION_BRANCH=$(APP_VERSION_BRANCH)
 endif
 
+ifdef APP_VERSION_GITREV
+	DAPP_VERSION_GITREV = -DAPP_VERSION_GITREV=$(APP_VERSION_GITREV)
+endif
+
 OBJ = bemos_modbus.o version.o
 BIN = bemos_modbus
 
@@ -30,15 +34,17 @@ systemd: $(BIN)
 .PHONY: clean systemd gitrev.hpp
 
 gitrev.hpp:
-	@echo -n "#define APP_VERSION_GITREV " > $@
+	@echo "#ifndef APP_VERSION_GITREV" > $@
+	@echo -n "#define APP_VERSION_GITREV " >> $@
 	@git rev-parse --verify --short=8 HEAD >> $@
-ifndef APP_VERSION_BRANCH
+	@echo "#endif" >> $@
+	@echo "#ifndef APP_VERSION_BRANCH" >> $@
 	@echo -n "#define APP_VERSION_BRANCH " >> $@
 	@git rev-parse --abbrev-ref HEAD >> $@
-endif
+	@echo "#endif" >> $@
 
 version.o: version.cpp gitrev.hpp
-	$(CXX) -c $(CPPFLAGS) $(DAPP_VERSION_BRANCH) $< -o $@
+	$(CXX) -c $(CPPFLAGS) $(DAPP_VERSION_BRANCH) $(DAPP_VERSION_GITREV) $< -o $@
 
 %.o: %.cpp
 	$(CXX) -c $(CPPFLAGS) $< -o $@
