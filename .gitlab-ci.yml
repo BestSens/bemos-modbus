@@ -16,8 +16,12 @@ build:arm:
         paths:
             - bemos_modbus
     script:
-        - source /opt/boneos/2.0.3/environment-setup-cortexa9hf-vfp-neon-poky-linux-gnueabi
-        - make systemd STRIP=true APP_VERSION_BRANCH=${CI_COMMIT_REF_NAME} APP_VERSION_GITREV=${CI_COMMIT_SHA:0:8}
+        -   source /opt/boneos/2.0.3/environment-setup-cortexa9hf-vfp-neon-poky-linux-gnueabi
+        -   if [ "${CI_COMMIT_TAG}" == "" ]; then
+                make systemd STRIP=true APP_VERSION_BRANCH=${CI_COMMIT_REF_SLUG} APP_VERSION_GITREV=${CI_COMMIT_SHORT_SHA}; 
+            else
+                make systemd STRIP=true APP_VERSION_BRANCH=master APP_VERSION_GITREV=${CI_COMMIT_SHORT_SHA};
+            fi
 
 build:i686:
     before_script:
@@ -31,7 +35,11 @@ build:i686:
             - bemos_modbus
             - Dockerfile
     script:
-        - make STRIP=true APP_VERSION_BRANCH=${CI_COMMIT_REF_NAME} APP_VERSION_GITREV=${CI_COMMIT_SHA:0:8}
+        -   if [ "${CI_COMMIT_TAG}" == "" ]; then
+                make STRIP=true APP_VERSION_BRANCH=${CI_COMMIT_REF_SLUG} APP_VERSION_GITREV=${CI_COMMIT_SHORT_SHA}; 
+            else
+                make STRIP=true APP_VERSION_BRANCH=master APP_VERSION_GITREV=${CI_COMMIT_SHORT_SHA};
+            fi
 
 deploy:arm:
     stage: deploy
