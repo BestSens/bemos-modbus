@@ -7,6 +7,7 @@
 
 #include "version.hpp"
 #include <string>
+#include <cctype>
 #include "gitrev.hpp"
 #include "version_info.hpp"
 
@@ -20,7 +21,7 @@ const std::string branch = std::string(APP_STR(APP_VERSION_BRANCH));
 const std::string revision = std::string(APP_STR(APP_VERSION_GITREV));
 
 bool app_is_dev() {
-	return branch != "master";
+	return branch != "master" && !std::isdigit(branch[0]);
 }
 
 bool app_is_debug() {
