@@ -5,6 +5,9 @@
 
 std::string app_version();
 std::string app_compile_date();
+std::string app_compile_flags();
+std::string app_linker_flags();
+std::string app_compiler_version();
 bool app_is_dev();
 bool app_is_debug();
 

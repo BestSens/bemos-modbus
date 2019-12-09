@@ -44,5 +44,17 @@ std::string app_version() {
 }
 
 std::string app_compile_date() {
-	return std::string(__DATE__) + " " + std::string(__TIME__);
+	return std::string(__TIMESTAMP__);
+}
+
+std::string app_compile_flags() {
+	return std::string(APP_STR(CPPFLAGS));
+}
+
+std::string app_linker_flags() {
+	return std::string(APP_STR(LDFLAGS));
+}
+
+std::string app_compiler_version() {
+	return std::string(__VERSION__);
 }

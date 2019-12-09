@@ -478,8 +478,12 @@ int main(int argc, char **argv){
 			if(result.count("version")) {
 				std::cout << "bemos-modbus version: " << app_version() << std::endl;
 
-				if(result.count("verbose"))
+				if(result.count("verbose")) {
 					std::cout << "compiled @ " << app_compile_date() << std::endl;
+					std::cout << "compiler version: " << app_compiler_version() << std::endl;
+					std::cout << "compiler flags: " << app_compile_flags() << std::endl;
+					std::cout << "linker flags: " << app_linker_flags() << std::endl;
+				}
 
 				return EXIT_SUCCESS;
 			}
