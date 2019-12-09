@@ -44,7 +44,7 @@ gitrev.hpp:
 	@echo "#endif" >> $@
 
 version.o: version.cpp gitrev.hpp
-	$(CXX) -c $(CPPFLAGS) $(DAPP_VERSION_BRANCH) $(DAPP_VERSION_GITREV) $< -o $@
+	$(CXX) -c $(CPPFLAGS) $(DAPP_VERSION_BRANCH) $(DAPP_VERSION_GITREV) -DCPPFLAGS="$(CXX) -c $(CPPFLAGS)" -DLDFLAGS="$(LDFLAGS)" $< -o $@
 
 %.o: %.cpp
 	$(CXX) -c $(CPPFLAGS) $< -o $@
