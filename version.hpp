@@ -9,6 +9,14 @@ std::string app_compile_flags();
 std::string app_linker_flags();
 std::string app_compiler_version();
 bool app_is_dev();
-bool app_is_debug();
+
+constexpr bool app_is_debug() {
+#ifdef DEBUG
+	return true;
+#else
+	return false;
+#endif
+}
+
 
 #endif /* VERSION_HPP_ */
