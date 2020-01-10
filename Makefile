@@ -27,11 +27,16 @@ DEPFILES := $(OBJ:.o=.d)
 $(BIN): $(OBJ)
 	$(CXX) $(CPPFLAGS) -o $@ $(OBJ) $(LDFLAGS)
 
+$(OBJ): compiler_flags
+
 systemd: CPPFLAGS += -DENABLE_SYSTEMD_STATUS
 systemd: LDFLAGS += -lsystemd
 systemd: $(BIN)
 
-.PHONY: clean systemd gitrev.hpp
+.PHONY: clean systemd force gitrev.hpp
+
+compiler_flags: force
+	echo '$(CPPFLAGS)' | cmp -s - $@ || echo '$(CPPFLAGS)' > $@
 
 gitrev.hpp:
 	@echo "#ifndef APP_VERSION_GITREV" > $@
@@ -52,4 +57,4 @@ version.o: version.cpp gitrev.hpp
 -include $(DEPFILES)
 
 clean:
-	rm -f $(BIN) $(OBJ) gitrev.hpp
+	rm -f $(BIN) $(OBJ) gitrev.hpp compiler_flags

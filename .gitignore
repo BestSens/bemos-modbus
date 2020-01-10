@@ -3,4 +3,5 @@
 bemos_modbus
 gitrev.hpp
 gitrev.hpp.md5
+compiler_flags
 *.sublime-workspace
