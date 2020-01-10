@@ -24,14 +24,6 @@ bool app_is_dev() {
 	return branch != "master" && !std::isdigit(branch[0]);
 }
 
-bool app_is_debug() {
-#ifdef DEBUG
-	return true;
-#else
-	return false;
-#endif
-}
-
 std::string app_version() {
 	if(app_is_dev()) {
 		if(app_is_debug())
