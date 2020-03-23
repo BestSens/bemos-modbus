@@ -3,6 +3,7 @@
 - add crash handler for core dumps
 - server can now handle multiple connections
 - undefined float values will be mapped as NAN
+- populate `active_alarms` with all active alarms and their timestamp
 
 ## 1.1.1 (21.11.2019)
 - reset registers to 0xFFFF when empty

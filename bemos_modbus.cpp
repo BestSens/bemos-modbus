@@ -123,6 +123,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			 */
 			json j;
 			socket.send_command("register_analysis", j, {{"name", "external_data"}});
+			socket.send_command("register_analysis", j, {{"name", "active_alarms"}});
 
 			while(running) {
 				dataTimer.wait_on_tick();
@@ -303,12 +304,22 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 				 * get channel_data
 				 */
 				json channel_data;
+				json active_alarms = {
+					{"name", "active_alarms"}
+				};
 
 				if(socket.send_command("channel_data", channel_data, {{"all", true}})) {
 					logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
 
 					if(is_json_object(channel_data, "payload")) {
 						const json payload = channel_data["payload"];
+
+						try {
+							active_alarms["data"] = payload["active_alarms"];
+
+							if(active_alarms["data"].count("date"))
+								active_alarms["data"].erase("date");
+						} catch(...) {}
 
 						for(auto &element : mb_register_map) {
 							try {
@@ -361,13 +372,27 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					for(unsigned int i = 0; i < coil_amount; i++) {
 						bool data = mb_mapping->tab_bits[i];
 
-						payload["data"]["coil_" + std::to_string(i + 1)] = data;
+						const std::string coil_name("coil_" + std::to_string(i + 1));
+
+						payload["data"][coil_name] = data;
+
+						if(!data) {
+							try {
+								active_alarms["data"].erase(coil_name);
+							} catch(...) {}
+						} else {
+							if(active_alarms["data"].count(coil_name) == 0)
+								active_alarms["data"][coil_name] = std::time(nullptr);
+						}
 					}
 
 					socket.send_command("new_data", j, payload);
+					socket.send_command("new_data", j, active_alarms);
 				}
 			}
-		} catch(...) {}
+		} catch(const std::exception &e) {
+			logfile.write(LOG_ERR, "exception: %s", e.what());
+		}
 	}
 }
 
