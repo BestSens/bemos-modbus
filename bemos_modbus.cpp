@@ -308,6 +308,11 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					{"name", "active_alarms"}
 				};
 
+				static struct {
+					int id = -1;
+					int ts;
+				} ack;
+
 				if(socket.send_command("channel_data", channel_data, {{"all", true}})) {
 					logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
 
@@ -320,6 +325,21 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 							if(active_alarms["data"].count("date"))
 								active_alarms["data"].erase("date");
 						} catch(...) {}
+
+						try {
+							int new_ts = payload["ack"]["date"];
+
+							if(new_ts != ack.ts) {
+								ack.id = payload["ack"]["ack"];
+								ack.ts = payload["ack"]["date"];
+							} else {
+								ack.id = -1;
+								json response;
+								socket.send_command("new_data", response, {{"name", "ack"}, {"data", {{"ack", -1}}}});
+							}
+						} catch(...) {
+							ack.id = -1;
+						}
 
 						for(auto &element : mb_register_map) {
 							try {
@@ -381,7 +401,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 								active_alarms["data"].erase(coil_name);
 							} catch(...) {}
 						} else {
-							if(active_alarms["data"].count(coil_name) == 0)
+							if(active_alarms["data"].count(coil_name) == 0 || ack.id == i + 1)
 								active_alarms["data"][coil_name] = std::time(nullptr);
 						}
 					}
