@@ -123,7 +123,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			 */
 			json j;
 			socket.send_command("register_analysis", j, {{"name", "external_data"}});
-			socket.send_command("register_analysis", j, {{"name", "active_alarms"}});
+			socket.send_command("register_analysis", j, {{"name", "active_coils"}});
 
 			while(running) {
 				dataTimer.wait_on_tick();
@@ -304,8 +304,8 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 				 * get channel_data
 				 */
 				json channel_data;
-				json active_alarms = {
-					{"name", "active_alarms"}
+				json active_coils = {
+					{"name", "active_coils"}
 				};
 
 				static struct {
@@ -320,10 +320,10 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						const json payload = channel_data["payload"];
 
 						try {
-							active_alarms["data"] = payload["active_alarms"];
+							active_coils["data"] = payload["active_coils"];
 
-							if(active_alarms["data"].count("date"))
-								active_alarms["data"].erase("date");
+							if(active_coils["data"].count("date"))
+								active_coils["data"].erase("date");
 						} catch(...) {}
 
 						try {
@@ -398,16 +398,16 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 						if(!data) {
 							try {
-								active_alarms["data"].erase(coil_name);
+								active_coils["data"].erase(coil_name);
 							} catch(...) {}
 						} else {
-							if(active_alarms["data"].count(coil_name) == 0 || ack.id == i + 1)
-								active_alarms["data"][coil_name] = std::time(nullptr);
+							if(active_coils["data"].count(coil_name) == 0 || ack.id == i + 1)
+								active_coils["data"][coil_name] = std::time(nullptr);
 						}
 					}
 
 					socket.send_command("new_data", j, payload);
-					socket.send_command("new_data", j, active_alarms);
+					socket.send_command("new_data", j, active_coils);
 				}
 			}
 		} catch(const std::exception &e) {
@@ -487,7 +487,7 @@ int main(int argc, char **argv){
 			{{"start address", 37}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "effective value"}, {"ignore oldness", true}},
 			{{"start address", 39}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "effective value"}, {"ignore oldness", true}},
 			{{"start address", 41}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-			{{"start address", 43}, {"type", "i16"}, {"source", "channel_data"}, {"attribute", "clear_lock"}}
+			{{"start address", 43}, {"type", "i16"}, {"source", "ack"}, {"attribute", "ack"}}
 	};
 
 	/*
