@@ -674,9 +674,9 @@ int main(int argc, char **argv){
 					}
 
 					try {
-						logfile.write(LOG_INFO, "[0x%02X] client connected from %s:%d", newfd, inet_ntoa(clientaddr.sin_addr), clientaddr.sin_port);
+						logfile.write(LOG_DEBUG, "[0x%02X] client connected from %s:%d", newfd, inet_ntoa(clientaddr.sin_addr), clientaddr.sin_port);
 					} catch(...) {
-						logfile.write(LOG_INFO, "[0x%02X] client connected", newfd);
+						logfile.write(LOG_DEBUG, "[0x%02X] client connected", newfd);
 					}
 				}
 			} else {
@@ -688,7 +688,7 @@ int main(int argc, char **argv){
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 					rc = modbus_reply(ctx, query, rc, mb_mapping);
 				} else if (rc == -1) {
-					logfile.write(LOG_WARNING, "[0x%02X] modbus connection closed: %s", master_socket, std::strerror(errno));
+					logfile.write(LOG_DEBUG, "[0x%02X] modbus connection closed: %s", master_socket, std::strerror(errno));
 					close(master_socket);
 
 					/* Remove from reference set */
