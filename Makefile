@@ -1,34 +1,60 @@
-CPPFLAGS = -std=c++14 -DNDEBUG -I${SDKTARGETSYSROOT}/usr/include/modbus
-LDFLAGS = -lm -lpthread -lcrypto -lmodbus
+LDFLAGS = -lm -lcrypto -lmodbus
+CPPFLAGS = -std=c++14 -I${SDKTARGETSYSROOT}/usr/include/modbus -MMD -MP -pthread
 
-OBJ = bemos_modbus.o
+ifndef DEBUG
+	CPPFLAGS += -O2 -DNDEBUG
+else
+	CPPFLAGS += -O1 -DDEBUG -Wall -g -rdynamic -funwind-tables -fno-inline
+endif
+
+ifdef STRIP
+	LDFLAGS += -s
+endif
+
+ifdef APP_VERSION_BRANCH
+	DAPP_VERSION_BRANCH = -DAPP_VERSION_BRANCH=$(APP_VERSION_BRANCH)
+endif
+
+ifdef APP_VERSION_GITREV
+	DAPP_VERSION_GITREV = -DAPP_VERSION_GITREV=$(APP_VERSION_GITREV)
+endif
+
+OBJ = bemos_modbus.o version.o
 BIN = bemos_modbus
 
-all: $(BIN)
+DEPFILES := $(OBJ:.o=.d)
 
-debug: CPPFLAGS = -std=c++14 -DDEBUG -O0 -Wall -g
-debug: $(BIN)
+$(BIN): $(OBJ)
+	$(CXX) $(CPPFLAGS) -o $@ $(OBJ) $(LDFLAGS)
+
+$(OBJ): compiler_flags
 
 systemd: CPPFLAGS += -DENABLE_SYSTEMD_STATUS
 systemd: LDFLAGS += -lsystemd
 systemd: $(BIN)
 
-.PHONY: clean
+.PHONY: clean systemd force gitrev.hpp
 
-$(BIN): $(OBJ)
-	$(CXX) $(CPPFLAGS) -o $@ $(OBJ) $(LDFLAGS)
+compiler_flags: force
+	echo '$(CPPFLAGS)' | cmp -s - $@ || echo '$(CPPFLAGS)' > $@
 
-gitrev.hpp: FORCE
-	@echo -n "#define APP_VERSION_GITREV " > $@
+gitrev.hpp:
+	@echo "#ifndef APP_VERSION_GITREV" > $@
+	@echo -n "#define APP_VERSION_GITREV " >> $@
 	@git rev-parse --verify --short=8 HEAD >> $@
+	@echo "#endif" >> $@
+	@echo "#ifndef APP_VERSION_BRANCH" >> $@
+	@echo -n "#define APP_VERSION_BRANCH " >> $@
+	@git rev-parse --abbrev-ref HEAD >> $@
+	@echo "#endif" >> $@
 
-FORCE:
+version.o: version.cpp gitrev.hpp
+	$(CXX) -c $(CPPFLAGS) $(DAPP_VERSION_BRANCH) $(DAPP_VERSION_GITREV) -DCPPFLAGS="$(CXX) -c $(CPPFLAGS)" -DLDFLAGS="$(LDFLAGS)" $< -o $@
 
-gitrev.hpp.md5: gitrev.hpp
-	@md5sum $< | cmp -s $@ -; if test $$? -ne 0; then md5sum $< > $@; fi
+%.o: %.cpp
+	$(CXX) -c $(CPPFLAGS) $< -o $@
 
-bemos_modbus.o: bemos_modbus.cpp version.hpp libs/bone_helper/system_helper.hpp libs/json/single_include/nlohmann/json.hpp libs/cxxopts/include/cxxopts.hpp gitrev.hpp.md5
-	$(CXX) $(CPPFLAGS) -c $<
+-include $(DEPFILES)
 
 clean:
-	rm -f $(BIN) $(OBJ) gitrev.hpp gitrev.hpp.md5
+	rm -f $(BIN) $(OBJ) gitrev.hpp compiler_flags

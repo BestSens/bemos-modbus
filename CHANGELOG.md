@@ -1,3 +1,9 @@
+## 2.0.0 (20.04.2020)
+- better handling of disconnection on modbus socket
+- add crash handler for core dumps
+- server can now handle multiple connections
+- undefined float values will be mapped as NAN
+
 ## 1.1.1 (21.11.2019)
 - reset registers to 0xFFFF when empty
 - get external_data from registers 100 to 120

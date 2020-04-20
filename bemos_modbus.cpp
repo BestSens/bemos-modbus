@@ -18,8 +18,11 @@
 #include <string>
 #include <mutex>
 #include <modbus.h>
+#include <signal.h>
+#include <execinfo.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 
 #include "version.hpp"
@@ -41,6 +44,7 @@ system_helper::LogManager logfile("bemos-modbus");
 #define GROUPID 880
 
 #define MB_REGISTER_SIZE 1024
+#define NB_CONNECTION 10
 
 std::atomic<bool> running{true};
 std::mutex mb_mapping_access_mtx;
@@ -51,10 +55,26 @@ namespace {
 		uint32_t data_32 = data_0 + (data_1 << 16);
 		return *reinterpret_cast<float*>(&data_32);
 	}
+
+	void crash_handler(int sig) {
+		void *array[30];
+		size_t size;
+
+		// get void*'s for all entries on the stack
+		size = backtrace(array, 30);
+
+		// print out all the frames to stderr
+		fprintf(stderr, "<2>Critical Error: signal %d\n", sig);
+		backtrace_symbols_fd(array, size, STDERR_FILENO);
+
+		signal(SIGABRT, SIG_DFL);
+		
+		exit(EXIT_FAILURE);
+	}
 }
 
 void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, json mb_register_map, modbus_mapping_t *mb_mapping, bool has_map_file, unsigned int coil_amount, unsigned int ext_amount) {
-	bestsens::loopTimer timer(std::chrono::seconds(1), 0);
+	bestsens::loopTimer timer(std::chrono::seconds(5), 0);
 	while(running) {
 		/*
 		 * set error flags and default values for mappings
@@ -105,7 +125,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			socket.send_command("register_analysis", j, {{"name", "external_data"}});
 
 			while(running) {
-				timer.wait_on_tick();
+				dataTimer.wait_on_tick();
 
 				auto addValue_u16 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
@@ -258,10 +278,10 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = 0x8000;
-						mb_mapping->tab_registers[address_start] = 0x8000;
-						mb_mapping->tab_input_registers[address_start+1] = 0x8000;
-						mb_mapping->tab_registers[address_start+1] = 0x8000;
+						mb_mapping->tab_input_registers[address_start] = 0x7FFF;
+						mb_mapping->tab_registers[address_start] = 0x7FFF;
+						mb_mapping->tab_input_registers[address_start+1] = 0xFFFF;
+						mb_mapping->tab_registers[address_start+1] = 0xFFFF;
 						mb_mapping->tab_input_bits[address_start] = 0;
 					}
 				};
@@ -332,13 +352,13 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 
-					for(int i = 0; i < ext_amount * 2; i++) 
+					for(unsigned int i = 0; i < ext_amount * 2; i++) 
 						mb_mapping->tab_input_registers[100 + i] = mb_mapping->tab_registers[100 + i];
 
-					for(int i = 0; i < ext_amount; i++)
+					for(unsigned int i = 0; i < ext_amount; i++)
 						payload["data"]["ext_" + std::to_string(i + 1)] = getValueFloat(mb_mapping->tab_registers[101 + i * 2], mb_mapping->tab_registers[100 + i * 2]);
 
-					for(int i = 0; i < coil_amount; i++) {
+					for(unsigned int i = 0; i < coil_amount; i++) {
 						bool data = mb_mapping->tab_bits[i];
 
 						payload["data"]["coil_" + std::to_string(i + 1)] = data;
@@ -372,12 +392,16 @@ std::string getHostname(modbus_t* ctx) {
 
 int main(int argc, char **argv){
 	modbus_mapping_t *mb_mapping;
-	uint8_t *query;
 	modbus_t *ctx;
 	int s = -1;
-	int rc;
 
 	assert(running.is_lock_free());
+
+	struct sigaction crash_action;
+	memset(&crash_action, 0, sizeof(struct sigaction));
+	crash_action.sa_handler = crash_handler;
+	sigaction(SIGSEGV, &crash_action, NULL);
+	sigaction(SIGABRT, &crash_action, NULL);
 
 	bool daemon = false;
 	bool has_map_file = false;
@@ -452,7 +476,15 @@ int main(int argc, char **argv){
 			}
 
 			if(result.count("version")) {
-				std::cout << "bemos-modbus version: " << APP_VERSION << std::endl;
+				std::cout << "bemos-modbus version: " << app_version() << std::endl;
+
+				if(result.count("verbose")) {
+					std::cout << "compiled @ " << app_compile_date() << std::endl;
+					std::cout << "compiler version: " << app_compiler_version() << std::endl;
+					std::cout << "compiler flags: " << app_compile_flags() << std::endl;
+					std::cout << "linker flags: " << app_linker_flags() << std::endl;
+				}
+
 				return EXIT_SUCCESS;
 			}
 
@@ -493,7 +525,7 @@ int main(int argc, char **argv){
 	if(ext_amount > (MB_REGISTER_SIZE - 100) / 2)
 		ext_amount = (MB_REGISTER_SIZE - 100) / 2;
 
-	logfile.write(LOG_INFO, "starting bemos-modbus %s", APP_VERSION);
+	logfile.write(LOG_INFO, "starting bemos-modbus %s", app_version().c_str());
 	logfile.write(LOG_INFO, "generating %u coils", coil_amount);
 	logfile.write(LOG_INFO, "generating %u ext values", ext_amount);
 
@@ -537,7 +569,6 @@ int main(int argc, char **argv){
 	}
 
 	ctx = modbus_new_tcp("127.0.0.1", port);
-	query = (uint8_t*)malloc(MODBUS_TCP_MAX_ADU_LENGTH);
 	//int header_length = modbus_get_header_length(ctx);
 
 	/* set timeout */
@@ -559,12 +590,11 @@ int main(int argc, char **argv){
 		return EXIT_FAILURE;
 	}
 
-	s = modbus_tcp_listen(ctx, 1);
+	s = modbus_tcp_listen(ctx, NB_CONNECTION);
 
 	if(s == -1) {
 		logfile.write(LOG_CRIT, "cannot reserve port %d, exiting", port);
 		modbus_mapping_free(mb_mapping);
-		free(query);
 		/* For RTU */
 		modbus_close(ctx);
 		modbus_free(ctx);
@@ -594,36 +624,82 @@ int main(int argc, char **argv){
 		logfile.write(LOG_DEBUG, "skipped daemonizing");
 	}
 
+	int master_socket;
+	fd_set refset;
+	fd_set rdset;
+	/* Maximum file descriptor number */
+	int fdmax;
+
+	/* Clear the reference set of socket */
+	FD_ZERO(&refset);
+	/* Add the server socket */
+	FD_SET(s, &refset);
+
+	/* Keep track of the max file descriptor */
+	fdmax = s;
+
 	bestsens::system_helper::systemd::ready();
 
-	while(running) {
-		logfile.write(LOG_INFO, "waiting for connection...");
-		modbus_tcp_accept(ctx, &s);
+	logfile.write(LOG_INFO, "waiting for connection...");
 
-		try {
-			logfile.write(LOG_INFO, "client connected from %s", getHostname(ctx).c_str());
-		} catch(...) {
-			logfile.write(LOG_INFO, "client connected");
+	while(running) {
+		rdset = refset;
+
+		if (select(fdmax+1, &rdset, NULL, NULL, NULL) == -1) {
+			logfile.write(LOG_WARNING, "error: select() failure");
+			break;
 		}
 
-		while(1) {
-			do {
-				rc = modbus_receive(ctx, query);
-				/* Filtered queries return 0 */
-			} while (rc == 0);
-
-			if (rc == -1) {
-				if (errno != EMBBADDATA)
-					return EXIT_FAILURE;
+		for (master_socket = 0; master_socket <= fdmax; master_socket++) {
+			if (!FD_ISSET(master_socket, &rdset)) {
+			    continue;
 			}
 
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			rc = modbus_reply(ctx, query, rc, mb_mapping);
-			if (rc == -1) 
-				return EXIT_FAILURE;
-		}
+			if(master_socket == s) {
+				socklen_t addrlen;
+				struct sockaddr_in clientaddr;
 
-		logfile.write(LOG_WARNING, "modbus connection closed: %s", std::strerror(errno));
+				addrlen = sizeof(clientaddr);
+				memset(&clientaddr, 0, sizeof(clientaddr));
+				int newfd = accept(s, (struct sockaddr *)&clientaddr, &addrlen);
+
+				if (newfd == -1) {
+					logfile.write(LOG_WARNING, "error: accept() failure");
+				} else {
+					FD_SET(newfd, &refset);
+
+					if (newfd > fdmax) {
+						/* Keep track of the maximum */
+						fdmax = newfd;
+					}
+
+					try {
+						logfile.write(LOG_DEBUG, "[0x%02X] client connected from %s:%d", newfd, inet_ntoa(clientaddr.sin_addr), clientaddr.sin_port);
+					} catch(...) {
+						logfile.write(LOG_DEBUG, "[0x%02X] client connected", newfd);
+					}
+				}
+			} else {
+				uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
+				modbus_set_socket(ctx, master_socket);
+				int rc = modbus_receive(ctx, query);
+
+				if (rc > 0) {
+					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+					rc = modbus_reply(ctx, query, rc, mb_mapping);
+				} else if (rc == -1) {
+					logfile.write(LOG_DEBUG, "[0x%02X] modbus connection closed: %s", master_socket, std::strerror(errno));
+					close(master_socket);
+
+					/* Remove from reference set */
+					FD_CLR(master_socket, &refset);
+
+					if (master_socket == fdmax) {
+						fdmax--;
+					}
+				}
+			}
+		}
 	}
 
 	running = false;
@@ -633,7 +709,6 @@ int main(int argc, char **argv){
 
 	close(s);
 	modbus_mapping_free(mb_mapping);
-	free(query);
 	/* For RTU */
 	modbus_close(ctx);
 	modbus_free(ctx);
