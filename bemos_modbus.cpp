@@ -455,7 +455,7 @@ int main(int argc, char **argv){
 	int port = 502;
 	int mb_to_usec = 500000;
 
-	unsigned int coil_amount = 136;
+	unsigned int coil_amount = 144;
 	unsigned int ext_amount = 32;
 
 	logfile.setMaxLogLevel(LOG_INFO);
@@ -468,7 +468,7 @@ int main(int argc, char **argv){
 	std::string map_file = "";
 
 	json mb_register_map = {
-			{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}},
+			{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}, {"ignore oldness", true}},
 			{{"start address", 3}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
 			{{"start address", 5}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
 			{{"start address", 7}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
@@ -489,7 +489,15 @@ int main(int argc, char **argv){
 			{{"start address", 37}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "max abs val velo"}, {"ignore oldness", true}},
 			{{"start address", 39}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "max abs val velo"}, {"ignore oldness", true}},
 			{{"start address", 41}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "max abs val velo"}, {"ignore oldness", true}},
-			{{"start address", 43}, {"type", "i16"}, {"source", "ack"}, {"attribute", "ack"}}
+			{{"start address", 43}, {"type", "i16"}, {"source", "ack"}, {"attribute", "ack"}},
+			{{"start address", 44}, {"type", "i32"}, {"source", "ks_data_0"}, {"attribute", "date"}, {"ignore oldness", true}},
+			{{"start address", 46}, {"type", "i32"}, {"source", "ks_data_1"}, {"attribute", "date"}, {"ignore oldness", true}},
+			{{"start address", 48}, {"type", "i32"}, {"source", "ks_data_2"}, {"attribute", "date"}, {"ignore oldness", true}},
+			{{"start address", 50}, {"type", "i32"}, {"source", "ks_data_3"}, {"attribute", "date"}, {"ignore oldness", true}},
+			{{"start address", 52}, {"type", "i32"}, {"source", "ks_data_4"}, {"attribute", "date"}, {"ignore oldness", true}},
+			{{"start address", 54}, {"type", "i32"}, {"source", "ks_data_5"}, {"attribute", "date"}, {"ignore oldness", true}},
+			{{"start address", 56}, {"type", "i32"}, {"source", "ks_data_6"}, {"attribute", "date"}, {"ignore oldness", true}},
+			{{"start address", 58}, {"type", "i32"}, {"source", "ks_data_7"}, {"attribute", "date"}, {"ignore oldness", true}}
 	};
 
 	/*
