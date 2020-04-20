@@ -1,4 +1,4 @@
-## 2.0.0 (unreleased)
+## 2.0.0 (20.04.2020)
 - better handling of disconnection on modbus socket
 - add crash handler for core dumps
 - server can now handle multiple connections
