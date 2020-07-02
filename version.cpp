@@ -35,6 +35,14 @@ std::string app_version() {
 	return version;
 }
 
+std::string app_git_branch() {
+	return branch;
+}
+
+std::string app_git_revision() {
+	return revision;
+}
+
 std::string app_compile_date() {
 	return std::string(__TIMESTAMP__);
 }
