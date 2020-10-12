@@ -51,6 +51,39 @@ std::mutex mb_mapping_access_mtx;
 bool map_error_displayed[MB_REGISTER_SIZE] = {false};
 
 namespace {
+	const json default_mb_register_map = {			
+		{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}, {"ignore oldness", true}},
+		{{"start address", 3}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
+		{{"start address", 5}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
+		{{"start address", 7}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
+		{{"start address", 9}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "stoerlevel"}},
+		{{"start address", 11}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean rt"}},
+		{{"start address", 13}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean amp"}},
+		{{"start address", 15}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms rt"}},
+		{{"start address", 17}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms amp"}},
+		{{"start address", 19}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp0"}},
+		{{"start address", 21}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
+		{{"start address", 23}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
+		{{"start address", 25}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "axial force"}},
+		{{"start address", 27}, {"type", "float"}, {"source", "ks_data_0"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
+		{{"start address", 29}, {"type", "float"}, {"source", "ks_data_1"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
+		{{"start address", 31}, {"type", "float"}, {"source", "ks_data_2"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
+		{{"start address", 33}, {"type", "float"}, {"source", "ks_data_3"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
+		{{"start address", 35}, {"type", "float"}, {"source", "ks_data_4"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
+		{{"start address", 37}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
+		{{"start address", 39}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
+		{{"start address", 41}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
+		{{"start address", 43}, {"type", "i16"}, {"source", "ack"}, {"attribute", "ack"}},
+		{{"start address", 44}, {"type", "i32"}, {"source", "ks_data_0"}, {"attribute", "date"}, {"ignore oldness", true}},
+		{{"start address", 46}, {"type", "i32"}, {"source", "ks_data_1"}, {"attribute", "date"}, {"ignore oldness", true}},
+		{{"start address", 48}, {"type", "i32"}, {"source", "ks_data_2"}, {"attribute", "date"}, {"ignore oldness", true}},
+		{{"start address", 50}, {"type", "i32"}, {"source", "ks_data_3"}, {"attribute", "date"}, {"ignore oldness", true}},
+		{{"start address", 52}, {"type", "i32"}, {"source", "ks_data_4"}, {"attribute", "date"}, {"ignore oldness", true}},
+		{{"start address", 54}, {"type", "i32"}, {"source", "ks_data_5"}, {"attribute", "date"}, {"ignore oldness", true}},
+		{{"start address", 56}, {"type", "i32"}, {"source", "ks_data_6"}, {"attribute", "date"}, {"ignore oldness", true}},
+		{{"start address", 58}, {"type", "i32"}, {"source", "ks_data_7"}, {"attribute", "date"}, {"ignore oldness", true}}
+	};
+
 	double getValueFloat(uint16_t data_0, uint16_t data_1) {
 		uint32_t data_32 = data_0 + (data_1 << 16);
 		return *reinterpret_cast<float*>(&data_32);
@@ -295,9 +328,12 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					if(socket.send_command("channel_attributes", channel_attributes, {{"name", "mb_register_map"}})) {
 						logfile.write(LOG_DEBUG, "mb_register_map: %s", channel_attributes.dump(2).c_str());
 
-						if(is_json_array(channel_attributes, "payload"))
+						if(is_json_array(channel_attributes, "payload") && channel_attributes["payload"].size() > 0)
 							mb_register_map = channel_attributes["payload"];
 					}
+
+					if(!mb_register_map.size())
+						mb_register_map = default_mb_register_map;
 				}
 
 				/*
@@ -467,38 +503,7 @@ int main(int argc, char **argv){
 
 	std::string map_file = "";
 
-	json mb_register_map = {
-			{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}, {"ignore oldness", true}},
-			{{"start address", 3}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
-			{{"start address", 5}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
-			{{"start address", 7}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
-			{{"start address", 9}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "stoerlevel"}},
-			{{"start address", 11}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean rt"}},
-			{{"start address", 13}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean amp"}},
-			{{"start address", 15}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms rt"}},
-			{{"start address", 17}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms amp"}},
-			{{"start address", 19}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp0"}},
-			{{"start address", 21}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
-			{{"start address", 23}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
-			{{"start address", 25}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "axial force"}},
-			{{"start address", 27}, {"type", "float"}, {"source", "ks_data_0"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
-			{{"start address", 29}, {"type", "float"}, {"source", "ks_data_1"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
-			{{"start address", 31}, {"type", "float"}, {"source", "ks_data_2"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
-			{{"start address", 33}, {"type", "float"}, {"source", "ks_data_3"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
-			{{"start address", 35}, {"type", "float"}, {"source", "ks_data_4"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
-			{{"start address", 37}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
-			{{"start address", 39}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
-			{{"start address", 41}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
-			{{"start address", 43}, {"type", "i16"}, {"source", "ack"}, {"attribute", "ack"}},
-			{{"start address", 44}, {"type", "i32"}, {"source", "ks_data_0"}, {"attribute", "date"}, {"ignore oldness", true}},
-			{{"start address", 46}, {"type", "i32"}, {"source", "ks_data_1"}, {"attribute", "date"}, {"ignore oldness", true}},
-			{{"start address", 48}, {"type", "i32"}, {"source", "ks_data_2"}, {"attribute", "date"}, {"ignore oldness", true}},
-			{{"start address", 50}, {"type", "i32"}, {"source", "ks_data_3"}, {"attribute", "date"}, {"ignore oldness", true}},
-			{{"start address", 52}, {"type", "i32"}, {"source", "ks_data_4"}, {"attribute", "date"}, {"ignore oldness", true}},
-			{{"start address", 54}, {"type", "i32"}, {"source", "ks_data_5"}, {"attribute", "date"}, {"ignore oldness", true}},
-			{{"start address", 56}, {"type", "i32"}, {"source", "ks_data_6"}, {"attribute", "date"}, {"ignore oldness", true}},
-			{{"start address", 58}, {"type", "i32"}, {"source", "ks_data_7"}, {"attribute", "date"}, {"ignore oldness", true}}
-	};
+	json mb_register_map = default_mb_register_map;
 
 	/*
 	 * parse commandline options
