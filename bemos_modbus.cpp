@@ -182,6 +182,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						}
 						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
 
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 						mb_mapping->tab_input_registers[address_start] = 0x8000;
 						mb_mapping->tab_registers[address_start] = 0x8000;
 						mb_mapping->tab_input_bits[address_start] = 0;
@@ -209,6 +210,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						}
 						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
 
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 						mb_mapping->tab_input_registers[address_start] = 0x8000;
 						mb_mapping->tab_registers[address_start] = 0x8000;
 						mb_mapping->tab_input_bits[address_start] = 0;
