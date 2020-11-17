@@ -40,17 +40,16 @@ system_helper::LogManager logfile("bemos-modbus");
 #define LOGIN_USER "bemos-analysis"
 #define LOGIN_HASH "82e324d4dac1dacf019e498d6045835b3998def1c1cece4abf94a3743f149e208f30276b3275fdbb8c60dea4a042c490d73168d41cf70f9cdc3e1e62eb43f8e4"
 
-#define USERID 1200
-#define GROUPID 880
-
-#define MB_REGISTER_SIZE 1024
-#define NB_CONNECTION 10
-
 std::atomic<bool> running{true};
 std::mutex mb_mapping_access_mtx;
-bool map_error_displayed[MB_REGISTER_SIZE] = {false};
 
 namespace {
+	constexpr auto USERID = 1200;
+	constexpr auto GROUPID = 880;
+
+	constexpr auto MB_REGISTER_SIZE = 1024;
+	constexpr auto NB_CONNECTION = 10;
+
 	const json default_mb_register_map = {			
 		{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}, {"ignore oldness", true}},
 		{{"start address", 3}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
@@ -107,6 +106,7 @@ namespace {
 }
 
 void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, json mb_register_map, modbus_mapping_t *mb_mapping, bool has_map_file, unsigned int coil_amount, unsigned int ext_amount) {
+	bool map_error_displayed[MB_REGISTER_SIZE] = {false};
 	bestsens::loopTimer timer(std::chrono::seconds(5), 0);
 	while(running) {
 		/*
@@ -114,7 +114,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 		 */
 		{
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			for(int i = 0; i <= mb_mapping->nb_input_registers; i++) {
+			for(int i = 0; i < mb_mapping->nb_input_registers; i++) {
 				mb_mapping->tab_input_registers[i] = 0xFFFF;
 				mb_mapping->tab_registers[i] = 0xFFFF;
 				mb_mapping->tab_input_bits[i] = 0;
@@ -161,7 +161,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			while(running) {
 				dataTimer.wait_on_tick();
 
-				auto addValue_u16 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
+				auto addValue_u16 = [&mb_mapping, &map_error_displayed](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
 						if(oldness > 10 && !ignore_oldness)
@@ -189,7 +189,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					}
 				};
 
-				auto addValue_i16 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
+				auto addValue_i16 = [&mb_mapping, &map_error_displayed](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
 						if(oldness > 10 && !ignore_oldness)
@@ -217,7 +217,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					}
 				};
 
-				auto addValue_u32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
+				auto addValue_u32 = [&mb_mapping, &map_error_displayed](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
 						if(oldness > 10 && !ignore_oldness)
@@ -252,7 +252,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					}
 				};
 
-				auto addValue_i32 = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
+				auto addValue_i32 = [&mb_mapping, &map_error_displayed](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
 						if(oldness > 10 && !ignore_oldness)
@@ -287,7 +287,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					}
 				};
 
-				auto addFloat = [&mb_mapping](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
+				auto addFloat = [&mb_mapping, &map_error_displayed](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
 					try {
 						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
 						if(oldness > 10 && !ignore_oldness)
@@ -689,11 +689,7 @@ int main(int argc, char **argv){
 		logfile.write(LOG_DEBUG, "skipped daemonizing");
 	}
 
-	int master_socket;
 	fd_set refset;
-	fd_set rdset;
-	/* Maximum file descriptor number */
-	int fdmax;
 
 	/* Clear the reference set of socket */
 	FD_ZERO(&refset);
@@ -701,26 +697,29 @@ int main(int argc, char **argv){
 	FD_SET(s, &refset);
 
 	/* Keep track of the max file descriptor */
-	fdmax = s;
+	int fdmax = s;
 
 	bestsens::system_helper::systemd::ready();
 
 	logfile.write(LOG_INFO, "waiting for connection...");
 
 	while(running) {
-		rdset = refset;
-
-		if (select(fdmax+1, &rdset, NULL, NULL, NULL) == -1) {
-			logfile.write(LOG_WARNING, "error: select() failure");
+		fd_set rdset = refset;
+		if(fdmax >= FD_SETSIZE - 1) {
+			logfile.write(LOG_CRIT, "error: maximum fd reached");
 			break;
 		}
 
-		for (master_socket = 0; master_socket <= fdmax; master_socket++) {
-			if (!FD_ISSET(master_socket, &rdset)) {
-			    continue;
-			}
+		if(select(fdmax+1, &rdset, NULL, NULL, NULL) == -1) {
+			logfile.write(LOG_CRIT, "error: select() failure: %d", errno);
+			break;
+		}
 
-			if(master_socket == s) {
+		for(int current_socket = 0; current_socket <= fdmax; current_socket++) {
+			if(!FD_ISSET(current_socket, &rdset))
+			    continue;
+
+			if(current_socket == s) {
 				socklen_t addrlen;
 				struct sockaddr_in clientaddr;
 
@@ -728,8 +727,11 @@ int main(int argc, char **argv){
 				memset(&clientaddr, 0, sizeof(clientaddr));
 				int newfd = accept(s, (struct sockaddr *)&clientaddr, &addrlen);
 
-				if (newfd == -1) {
-					logfile.write(LOG_WARNING, "error: accept() failure");
+				if(newfd == -1) {
+					logfile.write(LOG_ERR, "error: accept() failure");
+				} else if(newfd >= FD_SETSIZE - 1) {
+					close(newfd);
+					logfile.write(LOG_ERR, "maximum fd reached, connection closed");
 				} else {
 					FD_SET(newfd, &refset);
 
@@ -746,20 +748,20 @@ int main(int argc, char **argv){
 				}
 			} else {
 				uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
-				modbus_set_socket(ctx, master_socket);
+				modbus_set_socket(ctx, current_socket);
 				int rc = modbus_receive(ctx, query);
 
-				if (rc > 0) {
+				if(rc > 0) {
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 					rc = modbus_reply(ctx, query, rc, mb_mapping);
 				} else if (rc == -1) {
-					logfile.write(LOG_DEBUG, "[0x%02X] modbus connection closed: %s", master_socket, std::strerror(errno));
-					close(master_socket);
+					logfile.write(LOG_DEBUG, "[0x%02X] modbus connection closed: %s", current_socket, std::strerror(errno));
+					close(current_socket);
 
 					/* Remove from reference set */
-					FD_CLR(master_socket, &refset);
+					FD_CLR(current_socket, &refset);
 
-					if (master_socket == fdmax) {
+					if(current_socket == fdmax)
 						fdmax--;
 					}
 				}
