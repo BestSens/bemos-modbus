@@ -753,10 +753,7 @@ int main(int argc, char **argv){
 				modbus_set_socket(ctx, current_socket);
 				int rc = modbus_receive(ctx, query);
 
-				if(rc > 0 || errno == EMBBADCRC) {
-					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-					rc = modbus_reply(ctx, query, rc, mb_mapping);
-				} else if (rc == -1) {
+				if (rc == -1 && errno != EMBBADCRC) {
 					logfile.write(LOG_DEBUG, "[0x%02X] modbus connection closed: %s", current_socket, std::strerror(errno));
 					close(current_socket);
 
@@ -765,6 +762,9 @@ int main(int argc, char **argv){
 
 					if(current_socket == fdmax)
 						fdmax--;
+				} else {
+					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+					rc = modbus_reply(ctx, query, rc, mb_mapping);
 				}
 			}
 		}
