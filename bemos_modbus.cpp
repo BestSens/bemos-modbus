@@ -484,7 +484,7 @@ int main(int argc, char **argv){
 
 	struct sigaction crash_action;
 	memset(&crash_action, 0, sizeof(struct sigaction));
-	crash_action.sa_handle r = crash_handler;
+	crash_action.sa_handler = crash_handler;
 	sigaction(SIGSEGV, &crash_action, NULL);
 	sigaction(SIGABRT, &crash_action, NULL);
 
