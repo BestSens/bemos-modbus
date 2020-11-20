@@ -633,7 +633,7 @@ int main(int argc, char **argv){
 		}
 	}
 
-	ctx = modbus_new_tcp("127.0.0.1", port);
+	ctx = modbus_new_tcp(NULL, port);
 	//int header_length = modbus_get_header_length(ctx);
 
 	/* set timeout */
