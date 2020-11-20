@@ -484,13 +484,13 @@ int main(int argc, char **argv){
 
 	struct sigaction crash_action;
 	memset(&crash_action, 0, sizeof(struct sigaction));
-	crash_action.sa_handler = crash_handler;
+	crash_action.sa_handle r = crash_handler;
 	sigaction(SIGSEGV, &crash_action, NULL);
 	sigaction(SIGABRT, &crash_action, NULL);
 
 	bool daemon = false;
 	bool has_map_file = false;
-	int port = 502;
+	std::string port = "502";
 	int mb_to_usec = 500000;
 
 	unsigned int coil_amount = 144;
@@ -524,7 +524,7 @@ int main(int argc, char **argv){
 			("password", "plain text password used to connect", cxxopts::value<std::string>())
 			("map_file", "json encoded text file with Modbus mapping data", cxxopts::value<std::string>(map_file))
 			("suppress_syslog", "do not output syslog messages to stdout")
-			("o,listen", "modbus tcp listen port", cxxopts::value<int>(port))
+			("o,listen", "modbus tcp listen port", cxxopts::value<std::string>(port))
 			("t,timeout", "modbus tcp timeout in us", cxxopts::value<int>(mb_to_usec))
 			("coil_amount", "amount of coils injected to external_data", cxxopts::value<unsigned int>(coil_amount))
 			("ext_amount", "amount of ext values injected to external_data", cxxopts::value<unsigned int>(ext_amount))
@@ -633,7 +633,7 @@ int main(int argc, char **argv){
 		}
 	}
 	
-	ctx = modbus_new_tcp_pi(NULL, port);
+	ctx = modbus_new_tcp_pi(NULL, port.c_str());
 	
 	if(ctx == NULL) {
 		logfile.write(LOG_CRIT, "Unable to allocate libmodbus context: %s", modbus_strerror(errno));
@@ -660,7 +660,7 @@ int main(int argc, char **argv){
 	s = modbus_tcp_pi_listen(ctx, NB_CONNECTION);
 
 	if(s == -1) {
-		logfile.write(LOG_CRIT, "cannot reserve port %d, exiting", port);
+		logfile.write(LOG_CRIT, "cannot reserve port %s, exiting", port.c_str());
 		modbus_mapping_free(mb_mapping);
 		/* For RTU */
 		modbus_close(ctx);
@@ -668,7 +668,7 @@ int main(int argc, char **argv){
 		return EXIT_FAILURE;
 	}
 
-	logfile.write(LOG_INFO, "listening on port %d", port);
+	logfile.write(LOG_INFO, "listening on port %s", port.c_str());
 
 	if(getuid() == 0) {
 		/* process is running as root, drop privileges */
