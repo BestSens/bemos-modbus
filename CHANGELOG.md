@@ -1,5 +1,6 @@
 ## 2.0.1 (unreleased)
 - add gitrev and branch to `--version` info
+- fix for crash connection handling
 
 ## 2.0.0 (20.04.2020)
 - better handling of disconnection on modbus socket

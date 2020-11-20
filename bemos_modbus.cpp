@@ -710,7 +710,7 @@ int main(int argc, char **argv){
 			break;
 		}
 
-		if(select(fdmax+1, &rdset, NULL, NULL, NULL) == -1) {
+		if(pselect(fdmax+1, &rdset, NULL, NULL, NULL, NULL) == -1) {
 			logfile.write(LOG_CRIT, "error: select() failure: %d", errno);
 			break;
 		}
