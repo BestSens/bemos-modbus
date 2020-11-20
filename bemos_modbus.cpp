@@ -753,7 +753,7 @@ int main(int argc, char **argv){
 				modbus_set_socket(ctx, current_socket);
 				int rc = modbus_receive(ctx, query);
 
-				if(rc > 0) {
+				if(rc > 0 || errno == EMBBADCRC) {
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 					rc = modbus_reply(ctx, query, rc, mb_mapping);
 				} else if (rc == -1) {
