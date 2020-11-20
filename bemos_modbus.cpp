@@ -26,8 +26,8 @@
 #include <sys/socket.h>
 
 #include "version.hpp"
-#include "libs/cxxopts/include/cxxopts.hpp"
-#include "libs/json/single_include/nlohmann/json.hpp"
+#include "cxxopts.hpp"
+#include "nlohmann/json.hpp"
 #include "libs/bone_helper/netHelper.hpp"
 #include "libs/bone_helper/loopTimer.hpp"
 #include "libs/bone_helper/jsonHelper.hpp"
@@ -39,9 +39,6 @@ system_helper::LogManager logfile("bemos-modbus");
 
 #define LOGIN_USER "bemos-analysis"
 #define LOGIN_HASH "82e324d4dac1dacf019e498d6045835b3998def1c1cece4abf94a3743f149e208f30276b3275fdbb8c60dea4a042c490d73168d41cf70f9cdc3e1e62eb43f8e4"
-
-std::atomic<bool> running{true};
-std::mutex mb_mapping_access_mtx;
 
 namespace {
 	constexpr auto USERID = 1200;
@@ -82,6 +79,9 @@ namespace {
 		{{"start address", 56}, {"type", "i32"}, {"source", "ks_data_6"}, {"attribute", "date"}, {"ignore oldness", true}},
 		{{"start address", 58}, {"type", "i32"}, {"source", "ks_data_7"}, {"attribute", "date"}, {"ignore oldness", true}}
 	};
+
+	std::atomic<bool> running{true};
+	std::mutex mb_mapping_access_mtx;
 
 	double getValueFloat(uint16_t data_0, uint16_t data_1) {
 		uint32_t data_32 = data_0 + (data_1 << 16);
@@ -129,7 +129,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 		/*
 		 * open socket
 		 */
-		bestsens::jsonNetHelper socket = bestsens::jsonNetHelper(conn_target, conn_port);
+		bestsens::jsonNetHelper socket(conn_target, conn_port);
 		socket.set_timeout(1);
 
 		/*
@@ -763,7 +763,6 @@ int main(int argc, char **argv){
 
 					if(current_socket == fdmax)
 						fdmax--;
-					}
 				}
 			}
 		}

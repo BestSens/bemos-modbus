@@ -1,5 +1,5 @@
 LDFLAGS = -lm -lcrypto -lmodbus
-CPPFLAGS = -std=c++14 -I${SDKTARGETSYSROOT}/usr/include/modbus -MMD -MP -pthread
+CPPFLAGS = -std=c++14 -I${SDKTARGETSYSROOT}/usr/include/modbus -Ilibs/json/single_include/ -Ilibs/cxxopts/include/ -MMD -MP -pthread
 
 ifndef DEBUG
 	CPPFLAGS += -O2 -DNDEBUG
