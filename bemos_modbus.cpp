@@ -763,7 +763,8 @@ int main(int argc, char **argv){
 						fdmax--;
 				} else {
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-					rc = modbus_reply(ctx, query, rc, mb_mapping);
+					if(modbus_reply(ctx, query, rc, mb_mapping) == -1)
+						logfile.write(LOG_ERR, "[0x%02X] error sending modbus reply: %s", current_socket, std::strerror(errno));
 				}
 			}
 		}
