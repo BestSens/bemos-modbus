@@ -633,14 +633,12 @@ int main(int argc, char **argv){
 		}
 	}
 
-	ctx = modbus_new_tcp(NULL, port);
-	//int header_length = modbus_get_header_length(ctx);
-
-	/* set timeout */
-	// add compatibility to newer modbus versions
 	#if LIBMODBUS_VERSION_CHECK(3, 1, 0)
+		ctx = modbus_new_tcp(NULL, port);
 		modbus_set_response_timeout(ctx, 0, mb_to_usec);
 	#else
+		ctx = modbus_new_tcp("127.0.0.1", port);
+
 		struct timeval response_timeout;
 		response_timeout.tv_sec = 0;
 		response_timeout.tv_usec = mb_to_usec;
