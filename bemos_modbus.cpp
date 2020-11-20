@@ -751,8 +751,9 @@ int main(int argc, char **argv){
 			} else {
 				uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
 				modbus_set_socket(ctx, current_socket);
+				int rc = modbus_receive(ctx, query);
 
-				if(modbus_receive(ctx, query) == -1 && errno != EMBBADCRC) {
+				if (rc == -1 && errno != EMBBADCRC) {
 					logfile.write(LOG_DEBUG, "[0x%02X] modbus connection closed: %s", current_socket, std::strerror(errno));
 					close(current_socket);
 
