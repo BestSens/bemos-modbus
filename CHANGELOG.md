@@ -4,6 +4,7 @@
 - update bone_helper submodule
 - update cxxopts library to v2.2.1 (https://github.com/jarro2783/cxxopts/releases/tag/v2.2.1)
 - update nlohmann/json library to v3.9.1 (https://github.com/nlohmann/json/releases/tag/v3.9.1)
+- add IPv6 support
 
 ## 2.0.0 (20.04.2020)
 - better handling of disconnection on modbus socket

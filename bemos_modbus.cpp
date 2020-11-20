@@ -633,7 +633,7 @@ int main(int argc, char **argv){
 		}
 	}
 	
-	ctx = modbus_new_tcp("0.0.0.0", port);
+	ctx = modbus_new_tcp_pi(NULL, port);
 	
 	if(ctx == NULL) {
 		logfile.write(LOG_CRIT, "Unable to allocate libmodbus context: %s", modbus_strerror(errno));
@@ -657,7 +657,7 @@ int main(int argc, char **argv){
 		return EXIT_FAILURE;
 	}
 
-	s = modbus_tcp_listen(ctx, NB_CONNECTION);
+	s = modbus_tcp_pi_listen(ctx, NB_CONNECTION);
 
 	if(s == -1) {
 		logfile.write(LOG_CRIT, "cannot reserve port %d, exiting", port);
