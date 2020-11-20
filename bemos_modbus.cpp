@@ -632,13 +632,17 @@ int main(int argc, char **argv){
 			logfile.write(LOG_ERR, "map_file set but not found; using default map data");
 		}
 	}
+	
+	ctx = modbus_new_tcp("0.0.0.0", port);
+	
+	if(ctx == NULL) {
+		logfile.write(LOG_CRIT, "Unable to allocate libmodbus context: %s", modbus_strerror(errno));
+		return EXIT_FAILURE;
+	}
 
 	#if LIBMODBUS_VERSION_CHECK(3, 1, 0)
-		ctx = modbus_new_tcp(NULL, port);
 		modbus_set_response_timeout(ctx, 0, mb_to_usec);
 	#else
-		ctx = modbus_new_tcp("127.0.0.1", port);
-
 		struct timeval response_timeout;
 		response_timeout.tv_sec = 0;
 		response_timeout.tv_usec = mb_to_usec;
@@ -647,7 +651,7 @@ int main(int argc, char **argv){
 
 	mb_mapping = modbus_mapping_new(MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE);
 
-	if (mb_mapping == NULL) {
+	if(mb_mapping == NULL) {
 		logfile.write(LOG_CRIT, "Failed to allocate the mapping: %s", modbus_strerror(errno));
 		modbus_free(ctx);
 		return EXIT_FAILURE;
@@ -708,7 +712,7 @@ int main(int argc, char **argv){
 			break;
 		}
 
-		if(pselect(fdmax+1, &rdset, NULL, NULL, NULL, NULL) == -1) {
+		if(select(fdmax+1, &rdset, NULL, NULL, NULL) == -1) {
 			logfile.write(LOG_CRIT, "error: select() failure: %d", errno);
 			break;
 		}
