@@ -87,22 +87,6 @@ namespace {
 		uint32_t data_32 = data_0 + (data_1 << 16);
 		return *reinterpret_cast<float*>(&data_32);
 	}
-
-	void crash_handler(int sig) {
-		void *array[30];
-		size_t size;
-
-		// get void*'s for all entries on the stack
-		size = backtrace(array, 30);
-
-		// print out all the frames to stderr
-		fprintf(stderr, "<2>Critical Error: signal %d\n", sig);
-		backtrace_symbols_fd(array, size, STDERR_FILENO);
-
-		signal(SIGABRT, SIG_DFL);
-		
-		exit(EXIT_FAILURE);
-	}
 }
 
 void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, json mb_register_map, modbus_mapping_t *mb_mapping, bool has_map_file, unsigned int coil_amount, unsigned int ext_amount) {
@@ -481,12 +465,6 @@ int main(int argc, char **argv){
 	int s = -1;
 
 	assert(running.is_lock_free());
-
-	struct sigaction crash_action;
-	memset(&crash_action, 0, sizeof(struct sigaction));
-	crash_action.sa_handler = crash_handler;
-	sigaction(SIGSEGV, &crash_action, NULL);
-	sigaction(SIGABRT, &crash_action, NULL);
 
 	bool daemon = false;
 	bool has_map_file = false;
