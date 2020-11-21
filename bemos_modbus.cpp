@@ -611,7 +611,7 @@ int main(int argc, char **argv){
 		}
 	}
 	
-	ctx = modbus_new_tcp_pi(NULL, port.c_str());
+	ctx = modbus_new_tcp_pi("::0", port.c_str());
 	
 	if(ctx == NULL) {
 		logfile.write(LOG_CRIT, "Unable to allocate libmodbus context: %s", modbus_strerror(errno));
@@ -703,7 +703,7 @@ int main(int argc, char **argv){
 
 			if(current_socket == s) {
 				socklen_t addrlen;
-				struct sockaddr_in clientaddr;
+				struct sockaddr_storage clientaddr;
 
 				addrlen = sizeof(clientaddr);
 				memset(&clientaddr, 0, sizeof(clientaddr));
@@ -722,11 +722,14 @@ int main(int argc, char **argv){
 						fdmax = newfd;
 					}
 
-					try {
-						logfile.write(LOG_DEBUG, "[0x%02X] client connected from %s:%d", newfd, inet_ntoa(clientaddr.sin_addr), clientaddr.sin_port);
-					} catch(...) {
-						logfile.write(LOG_DEBUG, "[0x%02X] client connected", newfd);
-					}
+					char hoststr[NI_MAXHOST]; 
+					char portstr[NI_MAXSERV]; 
+
+					int rc = getnameinfo((struct sockaddr *)&clientaddr, addrlen, hoststr, sizeof(hoststr), portstr, sizeof(portstr), NI_NUMERICHOST | NI_NUMERICSERV); 
+					if(rc == 0)
+						logfile.write(LOG_INFO, "[0x%02X] client connected from %s:%s", newfd, hoststr, portstr);
+					else
+						logfile.write(LOG_INFO, "[0x%02X] client connected", newfd);
 
 					active_connections++;
 				}
