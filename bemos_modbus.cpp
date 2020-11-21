@@ -700,8 +700,10 @@ int main(int argc, char **argv){
 
 	/* Keep track of the max file descriptor */
 	int fdmax = s;
+	int active_connections = 0;
 
 	bestsens::system_helper::systemd::ready();
+	bestsens::system_helper::systemd::status("waiting for modbus connection");
 
 	logfile.write(LOG_INFO, "waiting for connection...");
 
@@ -747,6 +749,8 @@ int main(int argc, char **argv){
 					} catch(...) {
 						logfile.write(LOG_DEBUG, "[0x%02X] client connected", newfd);
 					}
+
+					active_connections++;
 				}
 			} else {
 				uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
@@ -762,6 +766,8 @@ int main(int argc, char **argv){
 
 					if(current_socket == fdmax)
 						fdmax--;
+
+					active_connections--;
 				} else {
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 					if(modbus_reply(ctx, query, rc, mb_mapping) == -1)
@@ -769,6 +775,8 @@ int main(int argc, char **argv){
 				}
 			}
 		}
+
+		bestsens::system_helper::systemd::status("active connections: " + std::to_string(active_connections));
 	}
 
 	running = false;
