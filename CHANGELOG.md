@@ -1,4 +1,4 @@
-## 2.0.1 (unreleased)
+## 2.1.0 (unreleased)
 - add gitrev and branch to `--version` info
 - fix for crash connection handling
 - update bone_helper submodule
