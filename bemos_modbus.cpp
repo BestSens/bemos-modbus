@@ -326,27 +326,34 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 				 * get channel_data
 				 */
 				json channel_data;
-				json active_coils = {
-					{"name", "active_coils"}
-				};
 
 				static struct {
 					int id = -1;
 					int ts;
 				} ack;
 
-				if(socket.send_command("channel_data", channel_data, {{"all", true}})) {
+				std::vector<std::string> source_list = {};
+				std::vector<std::string> identifier_list = {};
+				for(const auto& e : mb_register_map) {
+					try {
+						const std::string source = e["source"];
+						const std::string identifier = e["attribute"];
+						auto it = std::find(source_list.begin(), source_list.end(), source);
+						auto it2 = std::find(identifier_list.begin(), identifier_list.end(), identifier);
+
+						if(it == source_list.end())
+							source_list.push_back(source);
+
+						if(it2 == identifier_list.end())
+							identifier_list.push_back(identifier);
+					} catch(...) {}
+				}
+
+				if(socket.send_command("channel_data", channel_data, {{"name", source_list}, {"filter", identifier_list}})) {
 					logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
 
 					if(is_json_object(channel_data, "payload")) {
 						const json payload = channel_data["payload"];
-
-						try {
-							active_coils["data"] = payload["active_coils"];
-
-							if(active_coils["data"].count("date"))
-								active_coils["data"].erase("date");
-						} catch(...) {}
 
 						try {
 							int new_ts = payload["ack"]["date"];
@@ -392,6 +399,25 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					} else {
 						logfile.write(LOG_ERR, "error retrieving data");
 						break;
+					}
+				}
+
+				json active_coils = {
+					{"name", "active_coils"}
+				};
+
+				if(socket.send_command("channel_data", channel_data, {{"name", "active_coils"}})) {
+					logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
+
+					if(is_json_object(channel_data, "payload")) {
+						const json payload = channel_data["payload"];
+
+						try {
+							active_coils["data"] = payload["active_coils"];
+
+							if(active_coils["data"].count("date"))
+								active_coils["data"].erase("date");
+						} catch(...) {}
 					}
 				}
 				
