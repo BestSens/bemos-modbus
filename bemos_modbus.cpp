@@ -81,17 +81,134 @@ namespace {
 	};
 
 	std::atomic<bool> running{true};
+	std::atomic<bool> reload_config{true};
 	std::mutex mb_mapping_access_mtx;
+
+	enum representation_type_t {
+		i16, u16, i32, u32, i64, u64, float32
+	};
+
+	struct mb_map_config_t {
+		uint16_t start_address;
+		representation_type_t type;
+		std::string source;
+		std::string identifier;
+		bool ignore_oldness;
+		bool map_error_displayed = false;
+	};	
 
 	double getValueFloat(uint16_t data_0, uint16_t data_1) {
 		uint32_t data_32 = data_0 + (data_1 << 16);
 		return *reinterpret_cast<float*>(&data_32);
 	}
+
+	int main_socket = -1;
+
+	void handle_signal(int signal) {
+		switch(signal) {
+			case SIGINT: 
+			case SIGTERM: shutdown(main_socket, SHUT_RDWR); running = false; break;
+			case SIGHUP: reload_config = true; break;
+		}
+	}
+
+	std::vector<mb_map_config_t> update_configuration(bestsens::jsonNetHelper& socket, const std::string& map_file) {
+		std::vector<mb_map_config_t> mb_map_config = {};
+		json mb_register_map;
+		bool has_map_file = false;
+
+		if(map_file != "") {
+			std::ifstream file;
+			json file_data;
+			file.open(map_file);
+
+			if(file.is_open()) {
+				std::string str;
+				std::string file_contents;
+
+				while(std::getline(file, str)) {
+					file_contents += str;
+					file_contents.push_back('\n');
+				}
+
+				file.close();
+
+				try {
+					file_data = json::parse(file_contents);
+
+					if(file_data.is_array()) {
+						mb_register_map = file_data;
+						has_map_file = true;
+					} else {
+						logfile.write(LOG_WARNING, "map_file loaded but invalid scheme");
+					}
+				} catch(const json::exception& e) {
+					logfile.write(LOG_WARNING, "map_file set but error loading map data: %s", e.what());
+				}
+			} else {
+				logfile.write(LOG_ERR, "map_file set but not found; using default map data");
+			}
+		}
+
+		/*
+		 * get register map from server when not loaded from file
+		 */
+		if(has_map_file == false) {
+			json channel_attributes;
+			if(socket.send_command("channel_attributes", channel_attributes, {{"name", "mb_register_map"}})) {
+				logfile.write(LOG_DEBUG, "mb_register_map: %s", channel_attributes.dump(2).c_str());
+
+				if(is_json_array(channel_attributes, "payload") && channel_attributes["payload"].size() > 0)
+					mb_register_map = channel_attributes["payload"];
+			}
+
+			if(!mb_register_map.size())
+				mb_register_map = default_mb_register_map;
+		}
+
+		for(const auto& e : mb_register_map) {
+			try {
+				mb_map_config_t temp;
+				temp.start_address = e["start address"];
+				temp.source = e.value("source", "channel_data");;
+				temp.identifier = e["attribute"];
+				temp.ignore_oldness = e.value("ignore oldness", false);
+				temp.map_error_displayed = false;
+
+				std::string type = e.value("type", "i16");
+
+				if(type == "i16")
+					temp.type = i16;
+				else if(type == "u16")
+					temp.type = u16;
+				else if(type == "i32")
+					temp.type = i32;
+				else if(type == "u32")
+					temp.type = u32;
+				else if(type == "i64")
+					temp.type = i64;
+				else if(type == "u64")
+					temp.type = u64;
+				else if(type == "float")
+					temp.type = float32;
+				else
+					temp.type = i16;
+
+				mb_map_config.push_back(temp);
+			} catch(const std::exception& e) {
+				logfile.write(LOG_ERR, "error adding register map: %s", e.what());
+			}
+		}
+
+		return mb_map_config;
+	}
 }
 
-void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, json mb_register_map, modbus_mapping_t *mb_mapping, bool has_map_file, unsigned int coil_amount, unsigned int ext_amount) {
-	bool map_error_displayed[MB_REGISTER_SIZE] = {false};
-	bestsens::loopTimer timer(std::chrono::seconds(5), 0);
+void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, modbus_mapping_t *mb_mapping, const std::string& map_file, unsigned int coil_amount, unsigned int ext_amount) {
+	std::vector<std::string> source_list = {};
+	std::vector<std::string> identifier_list = {};
+	std::vector<mb_map_config_t> mb_map_config;
+	bestsens::loopTimer timer(std::chrono::seconds(5), 1);
 	while(running) {
 		/*
 		 * set error flags and default values for mappings
@@ -145,181 +262,190 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			while(running) {
 				dataTimer.wait_on_tick();
 
-				auto addValue_u16 = [&mb_mapping, &map_error_displayed](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
+				auto addValue_u16 = [&mb_mapping](const json& source, mb_map_config_t& config) {
 					try {
-						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
-						if(oldness > 10 && !ignore_oldness)
+						int oldness = std::time(nullptr) - source[config.source].value("date", 0);
+						if(oldness > 10 && !config.ignore_oldness)
 							throw std::runtime_error("data too old");
 
-						uint16_t response = source[source_name][value];
+						uint16_t response = source[config.source][config.identifier];
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = response;
-						mb_mapping->tab_registers[address_start] = response;
-						mb_mapping->tab_input_bits[address_start] = 1;
+						mb_mapping->tab_input_registers[config.start_address] = response;
+						mb_mapping->tab_registers[config.start_address] = response;
+						mb_mapping->tab_input_bits[config.start_address] = 1;
 
-						map_error_displayed[address_start] = false;
+						config.map_error_displayed = false;
 					} catch(const std::exception& e) {
 						int log_level = LOG_DEBUG;
-						if(map_error_displayed[address_start] == false) {
+						if(config.map_error_displayed == false) {
 							log_level = LOG_ERR;
-							map_error_displayed[address_start] = true;
+							config.map_error_displayed = true;
 						}
-						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", config.start_address, config.source.c_str(), config.identifier.c_str(), e.what());
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = 0x8000;
-						mb_mapping->tab_registers[address_start] = 0x8000;
-						mb_mapping->tab_input_bits[address_start] = 0;
+						mb_mapping->tab_input_registers[config.start_address] = 0x8000;
+						mb_mapping->tab_registers[config.start_address] = 0x8000;
+						mb_mapping->tab_input_bits[config.start_address] = 0;
 					}
 				};
 
-				auto addValue_i16 = [&mb_mapping, &map_error_displayed](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
+				auto addValue_i16 = [&mb_mapping](const json& source, mb_map_config_t& config) {
 					try {
-						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
-						if(oldness > 10 && !ignore_oldness)
+						int oldness = std::time(nullptr) - source[config.source].value("date", 0);
+						if(oldness > 10 && !config.ignore_oldness)
 							throw std::runtime_error("data too old");
 
-						int16_t response = source[source_name][value];
+						int16_t response = source[config.source][config.identifier];
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = response;
-						mb_mapping->tab_registers[address_start] = response;
-						mb_mapping->tab_input_bits[address_start] = 1;
+						mb_mapping->tab_input_registers[config.start_address] = response;
+						mb_mapping->tab_registers[config.start_address] = response;
+						mb_mapping->tab_input_bits[config.start_address] = 1;
 
-						map_error_displayed[address_start] = false;
+						config.map_error_displayed = false;
 					} catch(const std::exception& e) {
 						int log_level = LOG_DEBUG;
-						if(map_error_displayed[address_start] == false) {
+						if(config.map_error_displayed == false) {
 							log_level = LOG_ERR;
-							map_error_displayed[address_start] = true;
+							config.map_error_displayed = true;
 						}
-						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", config.start_address, config.source.c_str(), config.identifier.c_str(), e.what());
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = 0x8000;
-						mb_mapping->tab_registers[address_start] = 0x8000;
-						mb_mapping->tab_input_bits[address_start] = 0;
+						mb_mapping->tab_input_registers[config.start_address] = 0x8000;
+						mb_mapping->tab_registers[config.start_address] = 0x8000;
+						mb_mapping->tab_input_bits[config.start_address] = 0;
 					}
 				};
 
-				auto addValue_u32 = [&mb_mapping, &map_error_displayed](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
+				auto addValue_u32 = [&mb_mapping](const json& source, mb_map_config_t& config) {
 					try {
-						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
-						if(oldness > 10 && !ignore_oldness)
+						int oldness = std::time(nullptr) - source[config.source].value("date", 0);
+						if(oldness > 10 && !config.ignore_oldness)
 							throw std::runtime_error("data too old");
 
-						uint32_t response = source[source_name][value];
+						uint32_t response = source[config.source][config.identifier];
 
 						response = htonl(response);
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = htons((uint16_t)response);
-						mb_mapping->tab_registers[address_start] = htons((uint16_t)response);
-						mb_mapping->tab_input_registers[address_start+1] = htons((uint16_t)(response >> 16));
-						mb_mapping->tab_registers[address_start+1] = htons((uint16_t)(response >> 16));
-						mb_mapping->tab_input_bits[address_start] = 1;
+						mb_mapping->tab_input_registers[config.start_address] = htons((uint16_t)response);
+						mb_mapping->tab_registers[config.start_address] = htons((uint16_t)response);
+						mb_mapping->tab_input_registers[config.start_address+1] = htons((uint16_t)(response >> 16));
+						mb_mapping->tab_registers[config.start_address+1] = htons((uint16_t)(response >> 16));
+						mb_mapping->tab_input_bits[config.start_address] = 1;
 
-						map_error_displayed[address_start] = false;
+						config.map_error_displayed = false;
 					} catch(const std::exception& e) {
 						int log_level = LOG_DEBUG;
-						if(map_error_displayed[address_start] == false) {
+						if(config.map_error_displayed == false) {
 							log_level = LOG_ERR;
-							map_error_displayed[address_start] = true;
+							config.map_error_displayed = true;
 						}
-						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", config.start_address, config.source.c_str(), config.identifier.c_str(), e.what());
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = 0x8000;
-						mb_mapping->tab_registers[address_start] = 0x8000;
-						mb_mapping->tab_input_registers[address_start+1] = 0x8000;
-						mb_mapping->tab_registers[address_start+1] = 0x8000;
-						mb_mapping->tab_input_bits[address_start] = 0;
+						mb_mapping->tab_input_registers[config.start_address] = 0x8000;
+						mb_mapping->tab_registers[config.start_address] = 0x8000;
+						mb_mapping->tab_input_registers[config.start_address+1] = 0x8000;
+						mb_mapping->tab_registers[config.start_address+1] = 0x8000;
+						mb_mapping->tab_input_bits[config.start_address] = 0;
 					}
 				};
 
-				auto addValue_i32 = [&mb_mapping, &map_error_displayed](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
+				auto addValue_i32 = [&mb_mapping](const json& source, mb_map_config_t& config) {
 					try {
-						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
-						if(oldness > 10 && !ignore_oldness)
+						int oldness = std::time(nullptr) - source[config.source].value("date", 0);
+						if(oldness > 10 && !config.ignore_oldness)
 							throw std::runtime_error("data too old");
 
-						int32_t response = source[source_name][value];
+						int32_t response = source[config.source][config.identifier];
 
 						response = htonl(response);
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = htons((int16_t)response);
-						mb_mapping->tab_registers[address_start] = htons((int16_t)response);
-						mb_mapping->tab_input_registers[address_start+1] = htons((int16_t)(response >> 16));
-						mb_mapping->tab_registers[address_start+1] = htons((int16_t)(response >> 16));
-						mb_mapping->tab_input_bits[address_start] = 1;
+						mb_mapping->tab_input_registers[config.start_address] = htons((int16_t)response);
+						mb_mapping->tab_registers[config.start_address] = htons((int16_t)response);
+						mb_mapping->tab_input_registers[config.start_address+1] = htons((int16_t)(response >> 16));
+						mb_mapping->tab_registers[config.start_address+1] = htons((int16_t)(response >> 16));
+						mb_mapping->tab_input_bits[config.start_address] = 1;
 
-						map_error_displayed[address_start] = false;
+						config.map_error_displayed = false;
 					} catch(const std::exception& e) {
 						int log_level = LOG_DEBUG;
-						if(map_error_displayed[address_start] == false) {
+						if(config.map_error_displayed == false) {
 							log_level = LOG_ERR;
-							map_error_displayed[address_start] = true;
+							config.map_error_displayed = true;
 						}
-						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", config.start_address, config.source.c_str(), config.identifier.c_str(), e.what());
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = 0x8000;
-						mb_mapping->tab_registers[address_start] = 0x8000;
-						mb_mapping->tab_input_registers[address_start+1] = 0x8000;
-						mb_mapping->tab_registers[address_start+1] = 0x8000;
-						mb_mapping->tab_input_bits[address_start] = 0;
+						mb_mapping->tab_input_registers[config.start_address] = 0x8000;
+						mb_mapping->tab_registers[config.start_address] = 0x8000;
+						mb_mapping->tab_input_registers[config.start_address+1] = 0x8000;
+						mb_mapping->tab_registers[config.start_address+1] = 0x8000;
+						mb_mapping->tab_input_bits[config.start_address] = 0;
 					}
 				};
 
-				auto addFloat = [&mb_mapping, &map_error_displayed](uint16_t address_start, const json& source, const std::string& source_name, const std::string& value, bool ignore_oldness = false) {
+				auto addFloat = [&mb_mapping](const json& source, mb_map_config_t& config) {
 					try {
-						int oldness = std::time(nullptr) - source[source_name].value("date", 0);
-						if(oldness > 10 && !ignore_oldness)
+						int oldness = std::time(nullptr) - source[config.source].value("date", 0);
+						if(oldness > 10 && !config.ignore_oldness)
 							throw std::runtime_error("data too old");
 
-						float response = source[source_name][value];
+						float response = source[config.source][config.identifier];
 
 						uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = buff[1];
-						mb_mapping->tab_registers[address_start] = buff[1];
-						mb_mapping->tab_input_registers[address_start+1] = buff[0];
-						mb_mapping->tab_registers[address_start+1] = buff[0];
-						mb_mapping->tab_input_bits[address_start] = 1;
+						mb_mapping->tab_input_registers[config.start_address] = buff[1];
+						mb_mapping->tab_registers[config.start_address] = buff[1];
+						mb_mapping->tab_input_registers[config.start_address+1] = buff[0];
+						mb_mapping->tab_registers[config.start_address+1] = buff[0];
+						mb_mapping->tab_input_bits[config.start_address] = 1;
 
-						map_error_displayed[address_start] = false;
+						config.map_error_displayed = false;
 					} catch(const std::exception& e) {
 						int log_level = LOG_DEBUG;
-						if(map_error_displayed[address_start] == false) {
+						if(config.map_error_displayed == false) {
 							log_level = LOG_ERR;
-							map_error_displayed[address_start] = true;
+							config.map_error_displayed = true;
 						}
-						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", address_start, source_name.c_str(), value.c_str(), e.what());
+						logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", config.start_address, config.source.c_str(), config.identifier.c_str(), e.what());
 
 						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-						mb_mapping->tab_input_registers[address_start] = 0x7FFF;
-						mb_mapping->tab_registers[address_start] = 0x7FFF;
-						mb_mapping->tab_input_registers[address_start+1] = 0xFFFF;
-						mb_mapping->tab_registers[address_start+1] = 0xFFFF;
-						mb_mapping->tab_input_bits[address_start] = 0;
+						mb_mapping->tab_input_registers[config.start_address] = 0x7FFF;
+						mb_mapping->tab_registers[config.start_address] = 0x7FFF;
+						mb_mapping->tab_input_registers[config.start_address+1] = 0xFFFF;
+						mb_mapping->tab_registers[config.start_address+1] = 0xFFFF;
+						mb_mapping->tab_input_bits[config.start_address] = 0;
 					}
 				};
 
-				/*
-				 * get register map from server when not loaded from file
-				 */
-				if(has_map_file == false) {
-					json channel_attributes;
-					if(socket.send_command("channel_attributes", channel_attributes, {{"name", "mb_register_map"}})) {
-						logfile.write(LOG_DEBUG, "mb_register_map: %s", channel_attributes.dump(2).c_str());
+				if(reload_config) {
+					mb_map_config = update_configuration(socket, map_file);
 
-						if(is_json_array(channel_attributes, "payload") && channel_attributes["payload"].size() > 0)
-							mb_register_map = channel_attributes["payload"];
+					source_list.clear();
+					identifier_list.clear();
+					for(const auto& e : mb_map_config) {
+						try {
+							const std::string source = e.source;
+							const std::string identifier = e.identifier;
+							auto it = std::find(source_list.begin(), source_list.end(), source);
+							auto it2 = std::find(identifier_list.begin(), identifier_list.end(), identifier);
+
+							if(it == source_list.end())
+								source_list.push_back(source);
+
+							if(it2 == identifier_list.end())
+								identifier_list.push_back(identifier);
+						} catch(...) {}
 					}
 
-					if(!mb_register_map.size())
-						mb_register_map = default_mb_register_map;
+					logfile.write(LOG_INFO, "configuration reloaded");
+
+					reload_config = false;
 				}
 
 				/*
@@ -331,23 +457,6 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					int id = -1;
 					int ts;
 				} ack;
-
-				std::vector<std::string> source_list = {};
-				std::vector<std::string> identifier_list = {};
-				for(const auto& e : mb_register_map) {
-					try {
-						const std::string source = e["source"];
-						const std::string identifier = e["attribute"];
-						auto it = std::find(source_list.begin(), source_list.end(), source);
-						auto it2 = std::find(identifier_list.begin(), identifier_list.end(), identifier);
-
-						if(it == source_list.end())
-							source_list.push_back(source);
-
-						if(it2 == identifier_list.end())
-							identifier_list.push_back(identifier);
-					} catch(...) {}
-				}
 
 				if(socket.send_command("channel_data", channel_data, {{"name", source_list}, {"filter", identifier_list}})) {
 					logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
@@ -370,29 +479,23 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 							ack.id = -1;
 						}
 
-						for(auto &element : mb_register_map) {
+						for(auto &element : mb_map_config) {
 							try {
-								int start_address = element["start address"];
-								std::string type = element.value("type", "i16");
-								std::string source = element.value("source", "channel_data");
-								std::string attribute = element["attribute"];
-								bool ignore_oldness = element.value("ignore oldness", false);
-
-								if(type == "i32") {
-									addValue_i32(start_address, payload, source, attribute, ignore_oldness);
-								} else if(type == "u32") {
-									addValue_u32(start_address, payload, source, attribute, ignore_oldness);
-								} else if(type == "i16") {
-									addValue_i16(start_address, payload, source, attribute, ignore_oldness);
-								} else if(type == "u16") {
-									addValue_u16(start_address, payload, source, attribute, ignore_oldness);
-								} else if(type == "float") {
-									addFloat(start_address, payload, source, attribute, ignore_oldness);
+								if(element.type == i32) {
+									addValue_i32(payload, element);
+								} else if(element.type == u32) {
+									addValue_u32(payload, element);
+								} else if(element.type == i16) {
+									addValue_i16(payload, element);
+								} else if(element.type == u16) {
+									addValue_u16(payload, element);
+								} else if(element.type == float32) {
+									addFloat(payload, element);
 								} else {
-									addValue_u16(start_address, payload, source, attribute, ignore_oldness);
+									addValue_u16(payload, element);
 								}
 							} catch(const std::exception& e) {
-								logfile.write(LOG_WARNING, "error reading element of register map: %s (%s)", element.dump().c_str(), e.what());
+								logfile.write(LOG_WARNING, "error reading element of register map: %s", e.what());
 								continue;
 							}
 						}
@@ -406,7 +509,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					{"name", "active_coils"}
 				};
 
-				if(socket.send_command("channel_data", channel_data, {{"name", "active_coils"}})) {
+				if(socket.send_command("channel_data", channel_data, {{"name", "active_coils"}}, 2)) {
 					logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
 
 					if(is_json_object(channel_data, "payload")) {
@@ -421,12 +524,13 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					}
 				}
 				
-				{
+				try {
 					/*
 					 * get external data
 					 */
 					json payload = {
-						{"name", "external_data"}
+						{"name", "external_data"},
+						{"data", {}}
 					};
 
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
@@ -458,6 +562,8 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 					socket.send_command("new_data", j, payload);
 					socket.send_command("new_data", j, active_coils);
+				} catch(const std::exception &e) {
+					logfile.write(LOG_ERR, "error parsing external data: %s", e.what());
 				}
 			}
 		} catch(const std::exception &e) {
@@ -488,12 +594,17 @@ std::string getHostname(modbus_t* ctx) {
 int main(int argc, char **argv){
 	modbus_mapping_t *mb_mapping;
 	modbus_t *ctx;
-	int s = -1;
 
 	assert(running.is_lock_free());
+	struct sigaction action;
+	memset(&action, 0, sizeof(struct sigaction));
+	action.sa_handler = handle_signal;
+	action.sa_flags = SA_RESTART;
+	sigaction(SIGTERM, &action, NULL);
+	sigaction(SIGINT, &action, NULL);
+	sigaction(SIGHUP, &action, NULL);
 
 	bool daemon = false;
-	bool has_map_file = false;
 	std::string port = "502";
 	int mb_to_usec = 500000;
 
@@ -603,39 +714,6 @@ int main(int argc, char **argv){
 	 */
 	if(!std::numeric_limits<float>::is_iec559)
 		logfile.write(LOG_WARNING, "application wasn't compiled with IEEE 754 standard, floating point values may be out of standard");
-
-	if(map_file != "") {
-		std::ifstream file;
-		json file_data;
-		file.open(map_file);
-
-		if(file.is_open()) {
-			std::string str;
-			std::string file_contents;
-
-			while(std::getline(file, str)) {
-				file_contents += str;
-				file_contents.push_back('\n');
-			}
-
-			file.close();
-
-			try {
-				file_data = json::parse(file_contents);
-
-				if(file_data.is_array()) {
-					mb_register_map = file_data;
-					has_map_file = true;
-				} else {
-					logfile.write(LOG_WARNING, "map_file loaded but invalid scheme");
-				}
-			} catch(const json::exception& e) {
-				logfile.write(LOG_WARNING, "map_file set but error loading map data: %s", e.what());
-			}
-		} else {
-			logfile.write(LOG_ERR, "map_file set but not found; using default map data");
-		}
-	}
 	
 	ctx = modbus_new_tcp_pi("::0", port.c_str());
 	
@@ -661,9 +739,9 @@ int main(int argc, char **argv){
 		return EXIT_FAILURE;
 	}
 
-	s = modbus_tcp_pi_listen(ctx, NB_CONNECTION);
+	main_socket = modbus_tcp_pi_listen(ctx, NB_CONNECTION);
 
-	if(s == -1) {
+	if(main_socket == -1) {
 		logfile.write(LOG_CRIT, "cannot reserve port %s, exiting", port.c_str());
 		modbus_mapping_free(mb_mapping);
 		/* For RTU */
@@ -685,7 +763,7 @@ int main(int argc, char **argv){
 	}
 
 	/* spawn aquire thread */ 
-	std::thread aquire_inst(data_aquisition, conn_target, conn_port, username, password, mb_register_map, mb_mapping, has_map_file, coil_amount, ext_amount);
+	std::thread aquire_inst(data_aquisition, conn_target, conn_port, username, password, mb_mapping, map_file, coil_amount, ext_amount);
 
 	/* Deamonize */
 	if(daemon) {
@@ -700,10 +778,10 @@ int main(int argc, char **argv){
 	/* Clear the reference set of socket */
 	FD_ZERO(&refset);
 	/* Add the server socket */
-	FD_SET(s, &refset);
+	FD_SET(main_socket, &refset);
 
 	/* Keep track of the max file descriptor */
-	int fdmax = s;
+	int fdmax = main_socket;
 	int active_connections = 0;
 
 	bestsens::system_helper::systemd::ready();
@@ -718,8 +796,13 @@ int main(int argc, char **argv){
 			break;
 		}
 
-		if(select(fdmax+1, &rdset, NULL, NULL, NULL) == -1) {
-			logfile.write(LOG_CRIT, "error: select() failure: %d", errno);
+		if(pselect(fdmax+1, &rdset, NULL, NULL, NULL, NULL) == -1) {
+			if(errno == EINTR)
+				continue;
+
+			if(running)
+				logfile.write(LOG_CRIT, "error: pselect() failure: %s", strerror(errno));
+			
 			break;
 		}
 
@@ -727,13 +810,13 @@ int main(int argc, char **argv){
 			if(!FD_ISSET(current_socket, &rdset))
 			    continue;
 
-			if(current_socket == s) {
+			if(current_socket == main_socket) {
 				socklen_t addrlen;
 				struct sockaddr_storage clientaddr;
 
 				addrlen = sizeof(clientaddr);
 				memset(&clientaddr, 0, sizeof(clientaddr));
-				int newfd = accept(s, (struct sockaddr *)&clientaddr, &addrlen);
+				int newfd = accept(current_socket, (struct sockaddr *)&clientaddr, &addrlen);
 
 				if(newfd == -1) {
 					logfile.write(LOG_ERR, "error: accept() failure");
@@ -791,7 +874,7 @@ int main(int argc, char **argv){
 	/* wait on thread exit */
 	aquire_inst.join();
 
-	close(s);
+	close(main_socket);
 	modbus_mapping_free(mb_mapping);
 	/* For RTU */
 	modbus_close(ctx);
