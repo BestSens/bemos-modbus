@@ -7,6 +7,7 @@
 - add IPv6 support
 - don't automatically reload configuration, only with SIGHUP or on restart
 - optimize memory footprint and execution speed
+- use spdlog v1.8.1 as logging library (https://github.com/gabime/spdlog/releases/tag/v1.8.1)
 
 ## 2.0.0 (20.04.2020)
 - better handling of disconnection on modbus socket

@@ -28,14 +28,23 @@
 #include "version.hpp"
 #include "cxxopts.hpp"
 #include "nlohmann/json.hpp"
+
+#include "spdlog/spdlog.h"
+#include "spdlog/async.h"
+#include "spdlog/fmt/bin_to_hex.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/sinks/daily_file_sink.h"
+
+#ifdef ENABLE_SYSTEMD_STATUS
+#include "spdlog/sinks/systemd_sink.h"
+#endif
+
 #include "libs/bone_helper/netHelper.hpp"
 #include "libs/bone_helper/loopTimer.hpp"
 #include "libs/bone_helper/jsonHelper.hpp"
 #include "libs/bone_helper/system_helper.hpp"
 
 using namespace bestsens;
-
-system_helper::LogManager logfile("bemos-modbus");
 
 #define LOGIN_USER "bemos-analysis"
 #define LOGIN_HASH "82e324d4dac1dacf019e498d6045835b3998def1c1cece4abf94a3743f149e208f30276b3275fdbb8c60dea4a042c490d73168d41cf70f9cdc3e1e62eb43f8e4"
@@ -104,6 +113,20 @@ namespace {
 
 	int main_socket = -1;
 
+	#ifdef ENABLE_SYSTEMD_STATUS
+	auto create_systemd_logger(std::string name = "") {
+		std::vector<spdlog::sink_ptr> sinks;
+		sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_st>());
+		sinks.push_back(std::make_shared<spdlog::sinks::systemd_sink_st>());
+
+		sinks[1]->set_pattern("%v");
+
+		auto logger = std::make_shared<spdlog::async_logger>(name, begin(sinks), end(sinks), spdlog::thread_pool(), spdlog::async_overflow_policy::overrun_oldest);
+		spdlog::register_logger(logger);
+		return logger;
+	}
+	#endif
+
 	void handle_signal(int signal) {
 		switch(signal) {
 			case SIGINT: 
@@ -143,13 +166,13 @@ namespace {
 						mb_register_map = file_data;
 						has_map_file = true;
 					} else {
-						logfile.write(LOG_WARNING, "map_file loaded but invalid scheme");
+						spdlog::warn("map_file loaded but invalid scheme");
 					}
 				} catch(const json::exception& e) {
-					logfile.write(LOG_WARNING, "map_file set but error loading map data: %s", e.what());
+					spdlog::warn("map_file set but error loading map data: {}", e.what());
 				}
 			} else {
-				logfile.write(LOG_ERR, "map_file set but not found; using default map data");
+				spdlog::error("map_file set but not found; using default map data");
 			}
 		}
 
@@ -159,7 +182,7 @@ namespace {
 		if(has_map_file == false) {
 			json channel_attributes;
 			if(socket.send_command("channel_attributes", channel_attributes, {{"name", "mb_register_map"}})) {
-				logfile.write(LOG_DEBUG, "mb_register_map: %s", channel_attributes.dump(2).c_str());
+				spdlog::trace("mb_register_map: {}", channel_attributes.dump(2));
 
 				if(is_json_array(channel_attributes, "payload") && channel_attributes["payload"].size() > 0)
 					mb_register_map = channel_attributes["payload"];
@@ -210,7 +233,7 @@ namespace {
 				if(it2 == identifier_list.end())
 					identifier_list.push_back(temp.identifier);
 			} catch(const std::exception& e) {
-				logfile.write(LOG_ERR, "error adding register map: %s", e.what());
+				spdlog::error("error adding register map: {}", e.what());
 			}
 		}
 
@@ -231,12 +254,10 @@ namespace {
 
 			config.map_error_displayed = false;
 		} catch(const std::exception& e) {
-			int log_level = LOG_DEBUG;
 			if(config.map_error_displayed == false) {
-				log_level = LOG_ERR;
+				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
 				config.map_error_displayed = true;
 			}
-			logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", config.start_address, config.source.c_str(), config.identifier.c_str(), e.what());
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			mb_mapping->tab_input_registers[config.start_address] = 0x8000;
@@ -259,12 +280,10 @@ namespace {
 
 			config.map_error_displayed = false;
 		} catch(const std::exception& e) {
-			int log_level = LOG_DEBUG;
 			if(config.map_error_displayed == false) {
-				log_level = LOG_ERR;
+				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
 				config.map_error_displayed = true;
 			}
-			logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", config.start_address, config.source.c_str(), config.identifier.c_str(), e.what());
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			mb_mapping->tab_input_registers[config.start_address] = 0x8000;
@@ -292,12 +311,10 @@ namespace {
 
 			config.map_error_displayed = false;
 		} catch(const std::exception& e) {
-			int log_level = LOG_DEBUG;
 			if(config.map_error_displayed == false) {
-				log_level = LOG_ERR;
+				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
 				config.map_error_displayed = true;
 			}
-			logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", config.start_address, config.source.c_str(), config.identifier.c_str(), e.what());
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			mb_mapping->tab_input_registers[config.start_address] = 0x8000;
@@ -327,12 +344,10 @@ namespace {
 
 			config.map_error_displayed = false;
 		} catch(const std::exception& e) {
-			int log_level = LOG_DEBUG;
 			if(config.map_error_displayed == false) {
-				log_level = LOG_ERR;
+				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
 				config.map_error_displayed = true;
 			}
-			logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", config.start_address, config.source.c_str(), config.identifier.c_str(), e.what());
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			mb_mapping->tab_input_registers[config.start_address] = 0x8000;
@@ -362,12 +377,10 @@ namespace {
 
 			config.map_error_displayed = false;
 		} catch(const std::exception& e) {
-			int log_level = LOG_DEBUG;
 			if(config.map_error_displayed == false) {
-				log_level = LOG_ERR;
+				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
 				config.map_error_displayed = true;
 			}
-			logfile.write(log_level, "error setting map data for 0x%04X (%s.%s): %s", config.start_address, config.source.c_str(), config.identifier.c_str(), e.what());
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			mb_mapping->tab_input_registers[config.start_address] = 0x7FFF;
@@ -424,7 +437,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			throw std::runtime_error("login failed");
 		}
 
-		logfile.write(LOG_INFO, "connected to BeMoS");
+		spdlog::info("connected to BeMoS");
 
 		try {
 			bestsens::loopTimer dataTimer(std::chrono::seconds(1), 0);
@@ -444,7 +457,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 				if(reload_config) {
 					mb_map_config = update_configuration(socket, map_file, source_list, identifier_list);
 
-					logfile.write(LOG_INFO, "configuration reloaded");
+					spdlog::info("configuration reloaded");
 
 					reload_config = false;
 				}
@@ -460,7 +473,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 				} ack;
 
 				if(socket.send_command("channel_data", channel_data, {{"name", source_list}, {"filter", identifier_list}})) {
-					logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
+					spdlog::trace("{}", channel_data.dump(2));
 
 					if(is_json_object(channel_data, "payload")) {
 						const json payload = channel_data["payload"];
@@ -496,12 +509,12 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 									addValue_u16(mb_mapping, payload, element);
 								}
 							} catch(const std::exception& e) {
-								logfile.write(LOG_WARNING, "error reading element of register map: %s", e.what());
+								spdlog::warn("error reading element of register map: {}", e.what());
 								continue;
 							}
 						}
 					} else {
-						logfile.write(LOG_ERR, "error retrieving data");
+						spdlog::error("error retrieving data");
 						break;
 					}
 				}
@@ -511,7 +524,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 				};
 
 				if(socket.send_command("channel_data", channel_data, {{"name", "active_coils"}}, 2)) {
-					logfile.write(LOG_DEBUG, "%s", channel_data.dump(2).c_str());
+					spdlog::trace("{}", channel_data.dump(2));
 
 					if(is_json_object(channel_data, "payload")) {
 						const json payload = channel_data["payload"];
@@ -564,11 +577,11 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					socket.send_command("new_data", j, payload);
 					socket.send_command("new_data", j, active_coils);
 				} catch(const std::exception &e) {
-					logfile.write(LOG_ERR, "error parsing external data: %s", e.what());
+					spdlog::error("error parsing external data: {}", e.what());
 				}
 			}
 		} catch(const std::exception &e) {
-			logfile.write(LOG_ERR, "exception: %s", e.what());
+			spdlog::error("exception: {}", e.what());
 		}
 	}
 }
@@ -612,8 +625,6 @@ int main(int argc, char **argv){
 	unsigned int coil_amount = 144;
 	unsigned int ext_amount = 32;
 
-	logfile.setMaxLogLevel(LOG_INFO);
-
 	std::string conn_target = "localhost";
 	std::string conn_port = "6450";
 	std::string username = std::string(LOGIN_USER);
@@ -621,11 +632,26 @@ int main(int argc, char **argv){
 
 	std::string map_file = "";
 
+	auto console = spdlog::stdout_color_mt<spdlog::async_factory>("console");
+	console->set_pattern("%v");
+
+	#ifdef ENABLE_SYSTEMD_STATUS
+	auto systemd_logger = create_systemd_logger(argv[0]);
+	systemd_logger->flush_on(spdlog::level::err); 
+	spdlog::set_default_logger(systemd_logger);
+	#else
+	auto stdout_logger = spdlog::stdout_color_mt<spdlog::async_factory>(argv[0]);
+	stdout_logger->flush_on(spdlog::level::err); 
+	spdlog::set_default_logger(stdout_logger);
+	#endif
+
+	spdlog::flush_every(std::chrono::seconds(5));
+
 	/*
 	 * parse commandline options
 	 */
 	{
-		cxxopts::Options options("bemos-modbus", "BeMoS one modbus application");
+		cxxopts::Options options(argv[0], "BeMoS one modbus application");
 
 		options.add_options()
 			("version", "print version string")
@@ -648,37 +674,49 @@ int main(int argc, char **argv){
 			auto result = options.parse(argc, argv);
 
 			if(result.count("help")) {
-				std::cout << options.help() << std::endl;
+				spdlog::get("console")->info(options.help());
 				return EXIT_SUCCESS;
 			}
 
 			if(result.count("version")) {
-				std::cout << "bemos-modbus version: " << app_version() << std::endl;
+				spdlog::get("console")->info("bemos-modbus version: {}", app_version());
 
 				if(result.count("verbose")) {
-					std::cout << "git branch: " << app_git_branch() << std::endl;
-					std::cout << "git revision: " << app_git_revision() << std::endl;
-					std::cout << "compiled @ " << app_compile_date() << std::endl;
-					std::cout << "compiler version: " << app_compiler_version() << std::endl;
-					std::cout << "compiler flags: " << app_compile_flags() << std::endl;
-					std::cout << "linker flags: " << app_linker_flags() << std::endl;
+					spdlog::get("console")->info("git branch: {}", app_git_branch());
+					spdlog::get("console")->info("git revision: {}", app_git_revision());
+					spdlog::get("console")->info("compiled @ {}", app_compile_date());
+					spdlog::get("console")->info("compiler version: {}", app_compiler_version());
+					spdlog::get("console")->info("compiler flags: {}", app_compile_flags());
+					spdlog::get("console")->info("linker flags: {}", app_linker_flags());
 				}
 
 				return EXIT_SUCCESS;
 			}
 
 			if(daemon) {
-				logfile.setEcho(false);
-				logfile.write(LOG_INFO, "start daemonized");
+				#ifdef ENABLE_SYSTEMD_STATUS
+				if(systemd_logger->sinks().size() > 1)
+					systemd_logger->sinks().erase(systemd_logger->sinks().begin());
+				#endif
+
+				spdlog::info("daemonized");
 			}
 
 			if(result.count("suppress_syslog")) {
-				logfile.setEcho(false);
+				#ifdef ENABLE_SYSTEMD_STATUS
+				if(systemd_logger->sinks().size() > 1)
+					systemd_logger->sinks().erase(systemd_logger->sinks().begin());
+				#endif
 			}
 
 			if(result.count("verbose")) {
-				logfile.setMaxLogLevel(LOG_DEBUG);
-				logfile.write(LOG_INFO, "verbose output enabled");
+				spdlog::set_level(spdlog::level::debug);
+				spdlog::info("verbose output enabled");
+			}
+
+			if(result.count("verbose") > 1) {
+				spdlog::set_level(spdlog::level::trace);
+				spdlog::info("trace output enabled");
 			}
 
 			if(result.count("password")) {
@@ -686,14 +724,14 @@ int main(int argc, char **argv){
 			}
 
 			if(result.count("map_file")) {
-				logfile.write(LOG_INFO, "map file set to %s", map_file.c_str());
+				spdlog::info("map file set to {}", map_file);
 			}
 
 			if(result.count("timeout")) {
-				logfile.write(LOG_INFO, "modbus timeout set to %d us", mb_to_usec);
+				spdlog::info("modbus timeout set to {} us", mb_to_usec);
 			}
 		} catch(const std::exception& e) {
-			logfile.write(LOG_CRIT, "%s", e.what());
+			spdlog::get("console")->error(e.what());
 			return EXIT_FAILURE;
 		}
 	}
@@ -704,20 +742,20 @@ int main(int argc, char **argv){
 	if(ext_amount > (MB_REGISTER_SIZE - 100) / 2)
 		ext_amount = (MB_REGISTER_SIZE - 100) / 2;
 
-	logfile.write(LOG_INFO, "starting bemos-modbus %s", app_version().c_str());
-	logfile.write(LOG_INFO, "generating %u coils", coil_amount);
-	logfile.write(LOG_INFO, "generating %u ext values", ext_amount);
+	spdlog::info("starting bemos-modbus {}", app_version());
+	spdlog::info("generating {} coils", coil_amount);
+	spdlog::info("generating {} ext values", ext_amount);
 
 	/*
 	 * Test IEEE 754
 	 */
 	if(!std::numeric_limits<float>::is_iec559)
-		logfile.write(LOG_WARNING, "application wasn't compiled with IEEE 754 standard, floating point values may be out of standard");
+		spdlog::warn("application wasn't compiled with IEEE 754 standard, floating point values may be out of standard");
 	
 	ctx = modbus_new_tcp_pi("::0", port.c_str());
 	
 	if(ctx == NULL) {
-		logfile.write(LOG_CRIT, "Unable to allocate libmodbus context: %s", modbus_strerror(errno));
+		spdlog::critical("Unable to allocate libmodbus context: {}", modbus_strerror(errno));
 		return EXIT_FAILURE;
 	}
 
@@ -733,7 +771,7 @@ int main(int argc, char **argv){
 	mb_mapping = modbus_mapping_new(MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE, MB_REGISTER_SIZE);
 
 	if(mb_mapping == NULL) {
-		logfile.write(LOG_CRIT, "Failed to allocate the mapping: %s", modbus_strerror(errno));
+		spdlog::critical("Failed to allocate the mapping: {}", modbus_strerror(errno));
 		modbus_free(ctx);
 		return EXIT_FAILURE;
 	}
@@ -741,7 +779,7 @@ int main(int argc, char **argv){
 	main_socket = modbus_tcp_pi_listen(ctx, NB_CONNECTION);
 
 	if(main_socket == -1) {
-		logfile.write(LOG_CRIT, "cannot reserve port %s, exiting", port.c_str());
+		spdlog::critical("cannot reserve port {}, exiting", port);
 		modbus_mapping_free(mb_mapping);
 		/* For RTU */
 		modbus_close(ctx);
@@ -749,16 +787,16 @@ int main(int argc, char **argv){
 		return EXIT_FAILURE;
 	}
 
-	logfile.write(LOG_INFO, "listening on port %s", port.c_str());
+	spdlog::info("listening on port {}", port);
 
 	if(getuid() == 0) {
 		/* process is running as root, drop privileges */
-		logfile.write(LOG_INFO, "running as root, dropping privileges");
+		spdlog::info("running as root, dropping privileges");
 
 		if(setgid(GROUPID) != 0)
-			logfile.write(LOG_ERR, "setgid: Unable to drop group privileges: %s", strerror(errno));
+			spdlog::error("setgid: Unable to drop group privileges: {}", strerror(errno));
 		if(setuid(USERID) != 0)
-			logfile.write(LOG_ERR, "setuid: Unable to drop user privileges: %s", strerror(errno));
+			spdlog::error("setuid: Unable to drop user privileges: {}", strerror(errno));
 	}
 
 	/* spawn aquire thread */ 
@@ -767,9 +805,9 @@ int main(int argc, char **argv){
 	/* Deamonize */
 	if(daemon) {
 		bestsens::system_helper::daemonize();
-		logfile.write(LOG_INFO, "daemon created");
+		spdlog::info("daemon created");
 	} else {
-		logfile.write(LOG_DEBUG, "skipped daemonizing");
+		spdlog::debug("skipped daemonizing");
 	}
 
 	fd_set refset;
@@ -786,12 +824,12 @@ int main(int argc, char **argv){
 	bestsens::system_helper::systemd::ready();
 	bestsens::system_helper::systemd::status("waiting for modbus connection");
 
-	logfile.write(LOG_INFO, "waiting for connection...");
+	spdlog::info("waiting for connection...");
 
 	while(running) {
 		fd_set rdset = refset;
 		if(fdmax >= FD_SETSIZE - 1) {
-			logfile.write(LOG_CRIT, "error: maximum fd reached");
+			spdlog::critical("error: maximum fd reached");
 			break;
 		}
 
@@ -800,7 +838,7 @@ int main(int argc, char **argv){
 				continue;
 
 			if(running)
-				logfile.write(LOG_CRIT, "error: pselect() failure: %s", strerror(errno));
+				spdlog::critical("error: pselect() failure: {}", strerror(errno));
 			
 			break;
 		}
@@ -818,10 +856,10 @@ int main(int argc, char **argv){
 				int newfd = accept(current_socket, (struct sockaddr *)&clientaddr, &addrlen);
 
 				if(newfd == -1) {
-					logfile.write(LOG_ERR, "error: accept() failure");
+					spdlog::error("error: accept() failure");
 				} else if(newfd >= FD_SETSIZE - 1) {
 					close(newfd);
-					logfile.write(LOG_ERR, "maximum fd reached, connection closed");
+					spdlog::error("maximum fd reached, connection closed");
 				} else {
 					FD_SET(newfd, &refset);
 
@@ -835,9 +873,9 @@ int main(int argc, char **argv){
 
 					int rc = getnameinfo((struct sockaddr *)&clientaddr, addrlen, hoststr, sizeof(hoststr), portstr, sizeof(portstr), NI_NUMERICHOST | NI_NUMERICSERV); 
 					if(rc == 0)
-						logfile.write(LOG_INFO, "[0x%02X] client connected from %s:%s", newfd, hoststr, portstr);
+						spdlog::info("[0x{:02X}] client connected from {}:{}", newfd, hoststr, portstr);
 					else
-						logfile.write(LOG_INFO, "[0x%02X] client connected", newfd);
+						spdlog::info("[0x{:02X}] client connected", newfd);
 
 					active_connections++;
 				}
@@ -847,7 +885,7 @@ int main(int argc, char **argv){
 				int rc = modbus_receive(ctx, query);
 
 				if (rc == -1 && errno != EMBBADCRC) {
-					logfile.write(LOG_DEBUG, "[0x%02X] modbus connection closed: %s", current_socket, std::strerror(errno));
+					spdlog::debug("[0x{:02X}] modbus connection closed: {}", current_socket, std::strerror(errno));
 					close(current_socket);
 
 					/* Remove from reference set */
@@ -860,12 +898,12 @@ int main(int argc, char **argv){
 				} else {
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 					if(modbus_reply(ctx, query, rc, mb_mapping) == -1)
-						logfile.write(LOG_ERR, "[0x%02X] error sending modbus reply: %s", current_socket, std::strerror(errno));
+						spdlog::error("[0x{:02X}] error sending modbus reply: {}", current_socket, std::strerror(errno));
 				}
 			}
 		}
 
-		bestsens::system_helper::systemd::status("active connections: " + std::to_string(active_connections));
+		bestsens::system_helper::systemd::status(fmt::format("active connections: {}", active_connections));
 	}
 
 	running = false;
@@ -879,7 +917,7 @@ int main(int argc, char **argv){
 	modbus_close(ctx);
 	modbus_free(ctx);
 
-	logfile.write(LOG_DEBUG, "exited");
+	spdlog::debug("exited");
 
 	return EXIT_SUCCESS;
 }
