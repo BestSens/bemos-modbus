@@ -107,12 +107,15 @@ namespace {
 	void handle_signal(int signal) {
 		switch(signal) {
 			case SIGINT: 
-			case SIGTERM: shutdown(main_socket, SHUT_RDWR); running = false; break;
+			case SIGTERM: shutdown(main_socket, SHUT_RDWR);
+						running = false;
+						bestsens::loopTimer::kill_all();
+						break;
 			case SIGHUP: reload_config = true; break;
 		}
 	}
 
-	std::vector<mb_map_config_t> update_configuration(bestsens::jsonNetHelper& socket, const std::string& map_file) {
+	std::vector<mb_map_config_t> update_configuration(bestsens::jsonNetHelper& socket, const std::string& map_file, std::vector<std::string>& source_list, std::vector<std::string>& identifier_list) {
 		std::vector<mb_map_config_t> mb_map_config = {};
 		json mb_register_map;
 		bool has_map_file = false;
@@ -166,6 +169,8 @@ namespace {
 				mb_register_map = default_mb_register_map;
 		}
 
+		source_list.clear();
+		identifier_list.clear();
 		for(const auto& e : mb_register_map) {
 			try {
 				mb_map_config_t temp;
@@ -195,6 +200,15 @@ namespace {
 					temp.type = i16;
 
 				mb_map_config.push_back(temp);
+
+				auto it = std::find(source_list.begin(), source_list.end(), temp.source);
+				auto it2 = std::find(identifier_list.begin(), identifier_list.end(), temp.identifier);
+
+				if(it == source_list.end())
+					source_list.push_back(temp.source);
+
+				if(it2 == identifier_list.end())
+					identifier_list.push_back(temp.identifier);
 			} catch(const std::exception& e) {
 				logfile.write(LOG_ERR, "error adding register map: %s", e.what());
 			}
@@ -226,6 +240,8 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 		 * wait before reconnecting
 		 */
 		timer.wait_on_tick();
+		if(!running)
+			break;
 
 		/*
 		 * open socket
@@ -261,6 +277,8 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 			while(running) {
 				dataTimer.wait_on_tick();
+				if(!running)
+					break;
 
 				auto addValue_u16 = [&mb_mapping](const json& source, mb_map_config_t& config) {
 					try {
@@ -424,24 +442,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 				};
 
 				if(reload_config) {
-					mb_map_config = update_configuration(socket, map_file);
-
-					source_list.clear();
-					identifier_list.clear();
-					for(const auto& e : mb_map_config) {
-						try {
-							const std::string source = e.source;
-							const std::string identifier = e.identifier;
-							auto it = std::find(source_list.begin(), source_list.end(), source);
-							auto it2 = std::find(identifier_list.begin(), identifier_list.end(), identifier);
-
-							if(it == source_list.end())
-								source_list.push_back(source);
-
-							if(it2 == identifier_list.end())
-								identifier_list.push_back(identifier);
-						} catch(...) {}
-					}
+					mb_map_config = update_configuration(socket, map_file, source_list, identifier_list);
 
 					logfile.write(LOG_INFO, "configuration reloaded");
 
