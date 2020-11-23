@@ -264,7 +264,7 @@ namespace {
 			mb_mapping->tab_registers[config.start_address] = 0x8000;
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
-	};
+	}
 
 	void addValue_i16(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
@@ -290,7 +290,7 @@ namespace {
 			mb_mapping->tab_registers[config.start_address] = 0x8000;
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
-	};
+	}
 
 	void addValue_u32(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
@@ -323,7 +323,7 @@ namespace {
 			mb_mapping->tab_registers[config.start_address+1] = 0x8000;
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
-	};
+	}
 
 	void addValue_i32(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
@@ -356,7 +356,7 @@ namespace {
 			mb_mapping->tab_registers[config.start_address+1] = 0x8000;
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
-	};
+	}
 
 	void addFloat(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
@@ -389,7 +389,7 @@ namespace {
 			mb_mapping->tab_registers[config.start_address+1] = 0xFFFF;
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
-	};
+	}
 }
 
 void data_aquisition(std::string conn_target, std::string conn_port, std::string username, std::string password, modbus_mapping_t *mb_mapping, const std::string& map_file, unsigned int coil_amount, unsigned int ext_amount) {
@@ -569,7 +569,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 								active_coils["data"].erase(coil_name);
 							} catch(...) {}
 						} else {
-							if(active_coils["data"].count(coil_name) == 0 || ack.id == i + 1)
+							if(active_coils["data"].count(coil_name) == 0 || ack.id == static_cast<int>(i) + 1)
 								active_coils["data"][coil_name] = std::time(nullptr);
 						}
 					}
