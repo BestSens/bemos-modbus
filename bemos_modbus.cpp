@@ -240,121 +240,65 @@ namespace {
 			start[i] = 0x8000;
 	}
 
-	void addValue_u16(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
+	void addModbusValue(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
 			int oldness = std::time(nullptr) - source[config.source].value("date", 0);
 			if(oldness > 10 && !config.ignore_oldness)
 				throw std::runtime_error("data too old");
 
-			uint16_t response = source[config.source][config.identifier];
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			mb_mapping->tab_input_registers[config.start_address] = response;
-			mb_mapping->tab_registers[config.start_address] = response;
-			mb_mapping->tab_input_bits[config.start_address] = 1;
-
-			config.map_error_displayed = false;
-		} catch(const std::exception& e) {
-			if(config.map_error_displayed == false) {
-				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
-				config.map_error_displayed = true;
+			switch(config.type){
+				case i16:
+					{
+						int16_t response = source[config.source][config.identifier];
+						mb_mapping->tab_input_registers[config.start_address] = response;
+						mb_mapping->tab_registers[config.start_address] = response;
+					}
+					break;
+				case u16:
+					{
+						uint16_t response = source[config.source][config.identifier];
+						mb_mapping->tab_input_registers[config.start_address] = response;
+						mb_mapping->tab_registers[config.start_address] = response;
+					}
+					break;
+				case i32:
+					{
+						int32_t response = source[config.source][config.identifier];
+						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
+						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
+					}
+					break;
+				case u32:
+					{
+						uint32_t response = source[config.source][config.identifier];
+						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
+						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
+					}
+					break;
+				case i64:
+					{
+						uint64_t response = source[config.source][config.identifier];
+						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
+						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
+					}
+					break;
+				case u64:
+					{
+						int64_t response = source[config.source][config.identifier];
+						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
+						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
+					}
+					break;
+				case float32:
+					{
+						float response = source[config.source][config.identifier];
+						modbus_set_float_badc(response, mb_mapping->tab_input_registers + config.start_address);
+						modbus_set_float_badc(response, mb_mapping->tab_registers + config.start_address);
+					}
+					break;
+				default: throw std::runtime_error("type not found"); break;
 			}
-
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			setErrornous(mb_mapping->tab_input_registers + config.start_address, 1);
-			setErrornous(mb_mapping->tab_registers + config.start_address, 1);
-			mb_mapping->tab_input_bits[config.start_address] = 0;
-		}
-	}
-
-	void addValue_i16(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
-		try {
-			int oldness = std::time(nullptr) - source[config.source].value("date", 0);
-			if(oldness > 10 && !config.ignore_oldness)
-				throw std::runtime_error("data too old");
-
-			int16_t response = source[config.source][config.identifier];
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			mb_mapping->tab_input_registers[config.start_address] = response;
-			mb_mapping->tab_registers[config.start_address] = response;
-			mb_mapping->tab_input_bits[config.start_address] = 1;
-
-			config.map_error_displayed = false;
-		} catch(const std::exception& e) {
-			if(config.map_error_displayed == false) {
-				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
-				config.map_error_displayed = true;
-			}
-
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			setErrornous(mb_mapping->tab_input_registers + config.start_address, 1);
-			setErrornous(mb_mapping->tab_registers + config.start_address, 1);
-			mb_mapping->tab_input_bits[config.start_address] = 0;
-		}
-	}
-
-	void addValue_u32(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
-		try {
-			int oldness = std::time(nullptr) - source[config.source].value("date", 0);
-			if(oldness > 10 && !config.ignore_oldness)
-				throw std::runtime_error("data too old");
-
-			uint32_t response = source[config.source][config.identifier];
-
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
-			MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
-			mb_mapping->tab_input_bits[config.start_address] = 1;
-
-			config.map_error_displayed = false;
-		} catch(const std::exception& e) {
-			if(config.map_error_displayed == false) {
-				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
-				config.map_error_displayed = true;
-			}
-
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			setErrornous(mb_mapping->tab_input_registers + config.start_address, 2);
-			setErrornous(mb_mapping->tab_registers + config.start_address, 2);
-			mb_mapping->tab_input_bits[config.start_address] = 0;
-		}
-	}
-
-	void addValue_i32(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
-		try {
-			int oldness = std::time(nullptr) - source[config.source].value("date", 0);
-			if(oldness > 10 && !config.ignore_oldness)
-				throw std::runtime_error("data too old");
-
-			int32_t response = source[config.source][config.identifier];
-
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
-			MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
-			mb_mapping->tab_input_bits[config.start_address] = 1;
-
-			config.map_error_displayed = false;
-		} catch(const std::exception& e) {
-			if(config.map_error_displayed == false) {
-				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
-				config.map_error_displayed = true;
-			}
-
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			setErrornous(mb_mapping->tab_input_registers + config.start_address, 2);
-			setErrornous(mb_mapping->tab_registers + config.start_address, 2);
-			mb_mapping->tab_input_bits[config.start_address] = 0;
-		}
-	}
-
-	void addFloat(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
-		try {
-			int oldness = std::time(nullptr) - source[config.source].value("date", 0);
-			if(oldness > 10 && !config.ignore_oldness)
-				throw std::runtime_error("data too old");
-
-			float response = source[config.source][config.identifier];
-			modbus_set_float_badc(response, mb_mapping->tab_input_registers + config.start_address);
-			modbus_set_float_badc(response, mb_mapping->tab_registers + config.start_address);
 
 			mb_mapping->tab_input_bits[config.start_address] = 1;
 
@@ -366,9 +310,29 @@ namespace {
 			}
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			float err = NAN;
-			modbus_set_float_badc(err, mb_mapping->tab_input_registers + config.start_address);
-			modbus_set_float_badc(err, mb_mapping->tab_registers + config.start_address);
+			switch(config.type){
+				case i16:
+				case u16:
+					setErrornous(mb_mapping->tab_input_registers + config.start_address, 1);
+					setErrornous(mb_mapping->tab_registers + config.start_address, 1);
+					break;
+				case i32:
+				case u32:
+					setErrornous(mb_mapping->tab_input_registers + config.start_address, 2);
+					setErrornous(mb_mapping->tab_registers + config.start_address, 2);
+					break;
+				case i64:
+				case u64:
+					setErrornous(mb_mapping->tab_input_registers + config.start_address, 4);
+					setErrornous(mb_mapping->tab_registers + config.start_address, 4);
+					break;
+				case float32:
+					float err = NAN;
+					modbus_set_float_badc(err, mb_mapping->tab_input_registers + config.start_address);
+					modbus_set_float_badc(err, mb_mapping->tab_registers + config.start_address);
+					break;
+			}
+
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
 	}
@@ -477,19 +441,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 
 						for(auto &element : mb_map_config) {
 							try {
-								if(element.type == i32) {
-									addValue_i32(mb_mapping, payload, element);
-								} else if(element.type == u32) {
-									addValue_u32(mb_mapping, payload, element);
-								} else if(element.type == i16) {
-									addValue_i16(mb_mapping, payload, element);
-								} else if(element.type == u16) {
-									addValue_u16(mb_mapping, payload, element);
-								} else if(element.type == float32) {
-									addFloat(mb_mapping, payload, element);
-								} else {
-									addValue_u16(mb_mapping, payload, element);
-								}
+								addModbusValue(mb_mapping, payload, element);
 							} catch(const std::exception& e) {
 								spdlog::warn("error reading element of register map: {}", e.what());
 								continue;
