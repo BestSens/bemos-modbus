@@ -104,12 +104,7 @@ namespace {
 		std::string identifier;
 		bool ignore_oldness;
 		bool map_error_displayed = false;
-	};	
-
-	double getValueFloat(uint16_t data_0, uint16_t data_1) {
-		uint32_t data_32 = data_0 + (data_1 << 16);
-		return *reinterpret_cast<float*>(&data_32);
-	}
+	};
 
 	int main_socket = -1;
 
@@ -240,6 +235,11 @@ namespace {
 		return mb_map_config;
 	}
 
+	void setErrornous(uint16_t * start, ssize_t length) {
+		for(ssize_t i = 0; i < length; i++)
+			start[i] = 0x8000;
+	}
+
 	void addValue_u16(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
 			int oldness = std::time(nullptr) - source[config.source].value("date", 0);
@@ -260,8 +260,8 @@ namespace {
 			}
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			mb_mapping->tab_input_registers[config.start_address] = 0x8000;
-			mb_mapping->tab_registers[config.start_address] = 0x8000;
+			setErrornous(mb_mapping->tab_input_registers + config.start_address, 1);
+			setErrornous(mb_mapping->tab_registers + config.start_address, 1);
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
 	}
@@ -286,8 +286,8 @@ namespace {
 			}
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			mb_mapping->tab_input_registers[config.start_address] = 0x8000;
-			mb_mapping->tab_registers[config.start_address] = 0x8000;
+			setErrornous(mb_mapping->tab_input_registers + config.start_address, 1);
+			setErrornous(mb_mapping->tab_registers + config.start_address, 1);
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
 	}
@@ -300,13 +300,9 @@ namespace {
 
 			uint32_t response = source[config.source][config.identifier];
 
-			response = htonl(response);
-
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			mb_mapping->tab_input_registers[config.start_address] = htons((uint16_t)response);
-			mb_mapping->tab_registers[config.start_address] = htons((uint16_t)response);
-			mb_mapping->tab_input_registers[config.start_address+1] = htons((uint16_t)(response >> 16));
-			mb_mapping->tab_registers[config.start_address+1] = htons((uint16_t)(response >> 16));
+			MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
+			MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 			mb_mapping->tab_input_bits[config.start_address] = 1;
 
 			config.map_error_displayed = false;
@@ -317,10 +313,8 @@ namespace {
 			}
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			mb_mapping->tab_input_registers[config.start_address] = 0x8000;
-			mb_mapping->tab_registers[config.start_address] = 0x8000;
-			mb_mapping->tab_input_registers[config.start_address+1] = 0x8000;
-			mb_mapping->tab_registers[config.start_address+1] = 0x8000;
+			setErrornous(mb_mapping->tab_input_registers + config.start_address, 2);
+			setErrornous(mb_mapping->tab_registers + config.start_address, 2);
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
 	}
@@ -333,13 +327,9 @@ namespace {
 
 			int32_t response = source[config.source][config.identifier];
 
-			response = htonl(response);
-
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			mb_mapping->tab_input_registers[config.start_address] = htons((int16_t)response);
-			mb_mapping->tab_registers[config.start_address] = htons((int16_t)response);
-			mb_mapping->tab_input_registers[config.start_address+1] = htons((int16_t)(response >> 16));
-			mb_mapping->tab_registers[config.start_address+1] = htons((int16_t)(response >> 16));
+			MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
+			MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 			mb_mapping->tab_input_bits[config.start_address] = 1;
 
 			config.map_error_displayed = false;
@@ -350,10 +340,8 @@ namespace {
 			}
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			mb_mapping->tab_input_registers[config.start_address] = 0x8000;
-			mb_mapping->tab_registers[config.start_address] = 0x8000;
-			mb_mapping->tab_input_registers[config.start_address+1] = 0x8000;
-			mb_mapping->tab_registers[config.start_address+1] = 0x8000;
+			setErrornous(mb_mapping->tab_input_registers + config.start_address, 2);
+			setErrornous(mb_mapping->tab_registers + config.start_address, 2);
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
 	}
@@ -365,14 +353,9 @@ namespace {
 				throw std::runtime_error("data too old");
 
 			float response = source[config.source][config.identifier];
+			modbus_set_float_badc(response, mb_mapping->tab_input_registers + config.start_address);
+			modbus_set_float_badc(response, mb_mapping->tab_registers + config.start_address);
 
-			uint16_t* buff = reinterpret_cast<uint16_t*>(&response);
-
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			mb_mapping->tab_input_registers[config.start_address] = buff[1];
-			mb_mapping->tab_registers[config.start_address] = buff[1];
-			mb_mapping->tab_input_registers[config.start_address+1] = buff[0];
-			mb_mapping->tab_registers[config.start_address+1] = buff[0];
 			mb_mapping->tab_input_bits[config.start_address] = 1;
 
 			config.map_error_displayed = false;
@@ -383,10 +366,9 @@ namespace {
 			}
 
 			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
-			mb_mapping->tab_input_registers[config.start_address] = 0x7FFF;
-			mb_mapping->tab_registers[config.start_address] = 0x7FFF;
-			mb_mapping->tab_input_registers[config.start_address+1] = 0xFFFF;
-			mb_mapping->tab_registers[config.start_address+1] = 0xFFFF;
+			float err = NAN;
+			modbus_set_float_badc(err, mb_mapping->tab_input_registers + config.start_address);
+			modbus_set_float_badc(err, mb_mapping->tab_registers + config.start_address);
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
 	}
@@ -553,7 +535,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						mb_mapping->tab_input_registers[100 + i] = mb_mapping->tab_registers[100 + i];
 
 					for(unsigned int i = 0; i < ext_amount; i++)
-						payload["data"]["ext_" + std::to_string(i + 1)] = getValueFloat(mb_mapping->tab_registers[101 + i * 2], mb_mapping->tab_registers[100 + i * 2]);
+						payload["data"]["ext_" + std::to_string(i + 1)] = modbus_get_float_abcd(mb_mapping->tab_registers + 100 + i * 2);
 
 					payload["data"]["ext_" + std::to_string(ext_amount + 1)] = mb_mapping->tab_registers[101 + ext_amount * 2];
 
