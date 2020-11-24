@@ -242,6 +242,12 @@ namespace {
 
 	void addModbusValue(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
+			if(!is_json_object(source, config.source))
+				throw std::runtime_error("source not found");
+
+			if(!is_json_number(source[config.source], config.identifier))
+				throw std::runtime_error("identifier not found or not a number");
+
 			int oldness = std::time(nullptr) - source[config.source].value("date", 0);
 			if(oldness > 10 && !config.ignore_oldness)
 				throw std::runtime_error("data too old");
@@ -464,10 +470,12 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 						const json payload = channel_data["payload"];
 
 						try {
-							active_coils["data"] = payload["active_coils"];
+							if(is_json_object(active_coils, "data")) {
+								active_coils["data"] = payload["active_coils"];
 
-							if(active_coils["data"].count("date"))
-								active_coils["data"].erase("date");
+								if(active_coils["data"].count("date"))
+									active_coils["data"].erase("date");
+							}
 						} catch(...) {}
 					}
 				}

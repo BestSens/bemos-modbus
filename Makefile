@@ -7,7 +7,7 @@ CPPFLAGS +=  -Wall -Wextra -Wpedantic -Wno-unused-parameter -Wno-unused-function
 ifndef DEBUG
 	CPPFLAGS += -O2 -DNDEBUG
 else
-	CPPFLAGS += -Og -DDEBUG -g -rdynamic -funwind-tables -fno-inline
+	CPPFLAGS += -Og -DDEBUG -g -rdynamic -funwind-tables -fno-inline -ggdb3
 endif
 
 ifdef STRIP
