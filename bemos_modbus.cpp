@@ -578,11 +578,11 @@ int main(int argc, char **argv){
 	console->set_pattern("%v");
 
 	#ifdef ENABLE_SYSTEMD_STATUS
-	auto systemd_logger = create_systemd_logger(argv[0]);
+	auto systemd_logger = create_systemd_logger("bemos_modbus");
 	systemd_logger->flush_on(spdlog::level::err); 
 	spdlog::set_default_logger(systemd_logger);
 	#else
-	auto stdout_logger = spdlog::stdout_color_mt<spdlog::async_factory>(argv[0]);
+	auto stdout_logger = spdlog::stdout_color_mt<spdlog::async_factory>("bemos_modbus");
 	stdout_logger->flush_on(spdlog::level::err); 
 	spdlog::set_default_logger(stdout_logger);
 	#endif
@@ -593,7 +593,7 @@ int main(int argc, char **argv){
 	 * parse commandline options
 	 */
 	{
-		cxxopts::Options options(argv[0], "BeMoS one modbus application");
+		cxxopts::Options options("bemos_modbus", "BeMoS one modbus application");
 
 		options.add_options()
 			("version", "print version string")
