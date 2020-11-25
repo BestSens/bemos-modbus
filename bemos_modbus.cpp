@@ -488,6 +488,8 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					}
 
 					if(coil_amount > 0) {
+						std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+						
 						for(unsigned int i = 0; i < coil_amount; i++) {
 							bool coil_state = mb_mapping->tab_bits[i];
 
