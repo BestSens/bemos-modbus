@@ -6,12 +6,9 @@ CPPFLAGS +=  -Wall -Wextra -Wpedantic -Wno-unused-parameter -Wno-unused-function
 
 ifndef DEBUG
 	CPPFLAGS += -O2 -DNDEBUG
+	LDFLAGS += -s
 else
 	CPPFLAGS += -Og -DDEBUG -g -rdynamic -funwind-tables -fno-inline -ggdb3
-endif
-
-ifdef STRIP
-	LDFLAGS += -s
 endif
 
 ifdef APP_VERSION_BRANCH
