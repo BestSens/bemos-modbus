@@ -1,11 +1,20 @@
-## 2.0.1 (unreleased)
+## 2.1.0 (unreleased)
 - add gitrev and branch to `--version` info
+- fix for crash connection handling
+- update bone_helper submodule
+- update cxxopts library to v2.2.1 (https://github.com/jarro2783/cxxopts/releases/tag/v2.2.1)
+- update nlohmann/json library to v3.9.1 (https://github.com/nlohmann/json/releases/tag/v3.9.1)
+- add IPv6 support
+- don't automatically reload configuration, only with SIGHUP or on restart
+- optimize memory footprint and execution speed
+- use spdlog v1.8.1 as logging library (https://github.com/gabime/spdlog/releases/tag/v1.8.1)
 
 ## 2.0.0 (20.04.2020)
 - better handling of disconnection on modbus socket
 - add crash handler for core dumps
 - server can now handle multiple connections
 - undefined float values will be mapped as NAN
+- populate `active_alarms` with all active alarms and their timestamp
 
 ## 1.1.1 (21.11.2019)
 - reset registers to 0xFFFF when empty
