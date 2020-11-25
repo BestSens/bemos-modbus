@@ -385,9 +385,13 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 			/*
 			 * register "external_data" algo
 			 */
-			json j;
-			socket.send_command("register_analysis", j, {{"name", "external_data"}});
-			socket.send_command("register_analysis", j, {{"name", "active_coils"}});
+			if(ext_amount > 0 || coil_amount > 0) {
+				json j;
+				socket.send_command("register_analysis", j, {{"name", "external_data"}});
+
+				if(coil_amount > 0)
+					socket.send_command("register_analysis", j, {{"name", "active_coils"}});
+			}
 
 			while(running) {
 				dataTimer.wait_on_tick();
@@ -500,9 +504,11 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 							}
 						}
 
+						json j;
 						socket.send_command("new_data", j, active_coils);
 					}
 
+					json j;
 					socket.send_command("new_data", j, payload);
 				} catch(const std::exception &e) {
 					spdlog::error("error parsing external data: {}", e.what());
