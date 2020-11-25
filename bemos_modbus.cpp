@@ -245,10 +245,7 @@ namespace {
 			if(!is_json_object(source, config.source))
 				throw std::runtime_error("source not found");
 
-			if(!is_json_number(source[config.source], config.identifier))
-				throw std::runtime_error("identifier not found or not a number");
-
-			int oldness = std::time(nullptr) - source[config.source].value("date", 0);
+			int oldness = std::time(nullptr) - source.at(config.source).value("date", 0);
 			if(oldness > 10 && !config.ignore_oldness)
 				throw std::runtime_error("data too old");
 
@@ -256,49 +253,49 @@ namespace {
 			switch(config.type){
 				case i16:
 					{
-						int16_t response = source[config.source][config.identifier];
+						int16_t response = source.at(config.source).at(config.identifier).get<int16_t>();
 						mb_mapping->tab_input_registers[config.start_address] = response;
 						mb_mapping->tab_registers[config.start_address] = response;
 					}
 					break;
 				case u16:
 					{
-						uint16_t response = source[config.source][config.identifier];
+						uint16_t response = source.at(config.source).at(config.identifier).get<uint16_t>();
 						mb_mapping->tab_input_registers[config.start_address] = response;
 						mb_mapping->tab_registers[config.start_address] = response;
 					}
 					break;
 				case i32:
 					{
-						int32_t response = source[config.source][config.identifier];
+						int32_t response = source.at(config.source).at(config.identifier).get<int32_t>();
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case u32:
 					{
-						uint32_t response = source[config.source][config.identifier];
+						uint32_t response = source.at(config.source).at(config.identifier).get<uint32_t>();
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case i64:
 					{
-						uint64_t response = source[config.source][config.identifier];
+						uint64_t response = source.at(config.source).at(config.identifier).get<uint64_t>();
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case u64:
 					{
-						int64_t response = source[config.source][config.identifier];
+						int64_t response = source.at(config.source).at(config.identifier).get<int64_t>();
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case float32:
 					{
-						float response = source[config.source][config.identifier];
+						float response = source.at(config.source).at(config.identifier).get<float>();
 						modbus_set_float_badc(response, mb_mapping->tab_input_registers + config.start_address);
 						modbus_set_float_badc(response, mb_mapping->tab_registers + config.start_address);
 					}
@@ -428,14 +425,14 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					spdlog::trace("{}", channel_data.dump(2));
 
 					if(is_json_object(channel_data, "payload")) {
-						const json payload = channel_data["payload"];
+						const json payload = channel_data.at("payload");
 
 						try {
-							int new_ts = payload["ack"]["date"];
+							int new_ts = payload.at("ack").at("date").get<int>();
 
 							if(new_ts != ack.ts) {
-								ack.id = payload["ack"]["ack"];
-								ack.ts = payload["ack"]["date"];
+								ack.id = payload.at("ack").at("ack").get<int>();
+								ack.ts = payload.at("ack").at("date").get<int>();
 							} else {
 								ack.id = -1;
 								json response;
@@ -467,11 +464,11 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					spdlog::trace("{}", channel_data.dump(2));
 
 					if(is_json_object(channel_data, "payload")) {
-						const json payload = channel_data["payload"];
+						const json payload = channel_data.at("payload");
 
 						try {
-							if(is_json_object(active_coils, "data")) {
-								active_coils["data"] = payload["active_coils"];
+							if(is_json_object(payload, "active_coils")) {
+								active_coils["data"] = payload.at("active_coils");
 
 								if(active_coils["data"].count("date"))
 									active_coils["data"].erase("date");
@@ -485,8 +482,7 @@ void data_aquisition(std::string conn_target, std::string conn_port, std::string
 					 * get external data
 					 */
 					json payload = {
-						{"name", "external_data"},
-						{"data", {}}
+						{"name", "external_data"}
 					};
 
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
