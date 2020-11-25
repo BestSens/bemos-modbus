@@ -78,7 +78,7 @@ namespace {
 		{{"start address", 37}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
 		{{"start address", 39}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
 		{{"start address", 41}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "max abs val velocity"}, {"ignore oldness", true}},
-		{{"start address", 43}, {"type", "i16"}, {"source", "ack"}, {"attribute", "ack"}},
+		{{"start address", 43}, {"type", "i16"}, {"source", "ack"}, {"attribute", "ack"}, {"ignore oldness", true}},
 		{{"start address", 44}, {"type", "i32"}, {"source", "ks_data_0"}, {"attribute", "date"}, {"ignore oldness", true}},
 		{{"start address", 46}, {"type", "i32"}, {"source", "ks_data_1"}, {"attribute", "date"}, {"ignore oldness", true}},
 		{{"start address", 48}, {"type", "i32"}, {"source", "ks_data_2"}, {"attribute", "date"}, {"ignore oldness", true}},
