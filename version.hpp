@@ -4,6 +4,8 @@
 #include <string>
 
 std::string app_version();
+std::string app_git_branch();
+std::string app_git_revision();
 std::string app_compile_date();
 std::string app_compile_flags();
 std::string app_linker_flags();
@@ -17,6 +19,5 @@ constexpr bool app_is_debug() {
 	return false;
 #endif
 }
-
 
 #endif /* VERSION_HPP_ */
