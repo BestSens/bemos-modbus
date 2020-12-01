@@ -1,4 +1,4 @@
-## 2.1.0 (unreleased)
+## 2.1.0 (01.12.2020)
 - add gitrev and branch to `--version` info
 - fix for crash connection handling
 - update bone_helper submodule
