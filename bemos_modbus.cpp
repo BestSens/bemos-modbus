@@ -17,6 +17,8 @@
 #include <cstring>
 #include <string>
 #include <mutex>
+#include <pwd.h>
+#include <grp.h>
 #include <modbus.h>
 #include <signal.h>
 #include <execinfo.h>
@@ -50,9 +52,6 @@ using namespace bestsens;
 #define LOGIN_HASH "82e324d4dac1dacf019e498d6045835b3998def1c1cece4abf94a3743f149e208f30276b3275fdbb8c60dea4a042c490d73168d41cf70f9cdc3e1e62eb43f8e4"
 
 namespace {
-	constexpr auto USERID = 1200;
-	constexpr auto GROUPID = 880;
-
 	constexpr auto MB_REGISTER_SIZE = 1024;
 	constexpr auto NB_CONNECTION = 10;
 
@@ -329,6 +328,46 @@ namespace {
 
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
+	}
+
+	auto get_uid(const std::string& user_name) -> unsigned int {
+		struct passwd *pwd = getpwnam(user_name.c_str());
+
+		if (pwd == nullptr)
+			throw std::runtime_error(fmt::format("error getting uid: {}", strerror(errno)));
+		
+		return static_cast<unsigned int>(pwd->pw_uid);
+	}
+
+	auto get_gid(const std::string& group_name) -> unsigned int {
+		struct group *grp = getgrnam(group_name.c_str());
+
+		if (grp == nullptr)
+			throw std::runtime_error(fmt::format("error getting gid: {}", strerror(errno)));
+
+		return static_cast<unsigned int>(grp->gr_gid);
+	}
+
+
+	auto drop_priviledges() -> bool {
+		try {
+			auto userid = get_uid("bemos");
+			auto groupid = get_gid("bemos_users");
+
+			if (setgid(groupid) != 0)
+				throw std::runtime_error(fmt::format("setgid: Unable to drop group privileges: {}", strerror(errno)));
+
+			if (setuid(userid) != 0)
+				throw std::runtime_error(fmt::format("setuid: Unable to drop user privileges: {}", strerror(errno)));
+
+			if (setuid(0) != -1) 
+				throw std::runtime_error("managed to regain root privileges");
+		} catch (const std::exception& e) {
+			spdlog::error("error dropping privileges: {}", e.what());
+			return false;
+		}
+
+		return true;
 	}
 }
 
@@ -729,10 +768,10 @@ int main(int argc, char **argv){
 		/* process is running as root, drop privileges */
 		spdlog::info("running as root, dropping privileges");
 
-		if(setgid(GROUPID) != 0)
-			spdlog::error("setgid: Unable to drop group privileges: {}", strerror(errno));
-		if(setuid(USERID) != 0)
-			spdlog::error("setuid: Unable to drop user privileges: {}", strerror(errno));
+		if (!drop_priviledges()) {
+			spdlog::critical("dropping of privileges failed!");
+			return EXIT_FAILURE;
+		}
 	}
 
 	/* spawn aquire thread */ 
