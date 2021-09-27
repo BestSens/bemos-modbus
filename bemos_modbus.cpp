@@ -348,7 +348,6 @@ namespace {
 		return static_cast<unsigned int>(grp->gr_gid);
 	}
 
-
 	auto drop_priviledges() -> bool {
 		try {
 			auto userid = get_uid("bemos");
