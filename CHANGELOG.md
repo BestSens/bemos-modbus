@@ -1,5 +1,6 @@
 ## 2.1.1 (unreleased)
 - automatically determine target gid & uid
+- update nlohmann/json library to v3.10.4 (https://github.com/nlohmann/json/releases/tag/v3.10.4)
 
 ## 2.1.0 (01.12.2020)
 - add gitrev and branch to `--version` info
