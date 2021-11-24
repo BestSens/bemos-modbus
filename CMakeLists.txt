@@ -11,7 +11,7 @@ include(pre)
 include(fmt)
 include(spdlog)
 include(bone_helper)
-include(cxxopts)
+include(add_cxxopts)
 include(json)
 
 add_executable(${MAIN_EXECUTABLE}
