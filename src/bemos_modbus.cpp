@@ -5,46 +5,46 @@
  *	  Author: Jan Schöppach
  */
 
-#include <cstdio>
-#include <cstdlib>
-#include <iostream>
-#include <fstream>
-#include <atomic>
-#include <thread>
+#include <arpa/inet.h>
 #include <errno.h>
-#include <unistd.h>
+#include <execinfo.h>
 #include <getopt.h>
-#include <cstring>
-#include <string>
-#include <mutex>
-#include <pwd.h>
 #include <grp.h>
 #include <modbus.h>
+#include <pwd.h>
 #include <signal.h>
-#include <execinfo.h>
-#include <arpa/inet.h>
-#include <sys/stat.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
-#include "version.hpp"
+#include <atomic>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <thread>
+
+#include "bemos_modbus/version.hpp"
 #include "cxxopts.hpp"
 #include "nlohmann/json.hpp"
-
-#include "spdlog/spdlog.h"
 #include "spdlog/async.h"
 #include "spdlog/fmt/bin_to_hex.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/sinks/daily_file_sink.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/spdlog.h"
 
 #ifdef ENABLE_SYSTEMD_STATUS
 #include "spdlog/sinks/systemd_sink.h"
 #endif
 
-#include "libs/bone_helper/netHelper.hpp"
-#include "libs/bone_helper/loopTimer.hpp"
-#include "libs/bone_helper/jsonHelper.hpp"
-#include "libs/bone_helper/system_helper.hpp"
+#include "bone_helper/netHelper.hpp"
+#include "bone_helper/loopTimer.hpp"
+#include "bone_helper/jsonHelper.hpp"
+#include "bone_helper/system_helper.hpp"
 
 using namespace bestsens;
 
@@ -653,15 +653,13 @@ int main(int argc, char **argv){
 			}
 
 			if(result.count("version")) {
-				spdlog::get("console")->info("bemos-modbus version: {}", app_version());
+				spdlog::get("console")->info("bemos-modbus version: {}", appVersion());
 
-				if(result.count("verbose")) {
-					spdlog::get("console")->info("git branch: {}", app_git_branch());
-					spdlog::get("console")->info("git revision: {}", app_git_revision());
-					spdlog::get("console")->info("compiled @ {}", app_compile_date());
-					spdlog::get("console")->info("compiler version: {}", app_compiler_version());
-					spdlog::get("console")->info("compiler flags: {}", app_compile_flags());
-					spdlog::get("console")->info("linker flags: {}", app_linker_flags());
+				if (result.count("verbose") != 0u) {
+					spdlog::get("console")->info("git branch: {}", appGitBranch());
+					spdlog::get("console")->info("git revision: {}", appGitRevision());
+					spdlog::get("console")->info("compiled @ {}", appCompileDate());
+					spdlog::get("console")->info("compiler version: {}", appCompilerVersion());
 				}
 
 				return EXIT_SUCCESS;
@@ -716,7 +714,7 @@ int main(int argc, char **argv){
 	if(ext_amount > (MB_REGISTER_SIZE - 100) / 2)
 		ext_amount = (MB_REGISTER_SIZE - 100) / 2;
 
-	spdlog::info("starting bemos-modbus {}", app_version());
+	spdlog::info("starting bemos-modbus {}", appVersion());
 	spdlog::info("generating {} coils", coil_amount);
 	spdlog::info("generating {} ext values", ext_amount);
 
