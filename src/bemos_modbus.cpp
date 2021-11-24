@@ -82,6 +82,8 @@ namespace {
 	std::atomic<bool> running{true};
 	std::atomic<bool> reload_config{true};
 	std::mutex mb_mapping_access_mtx;
+	
+	int main_socket{-1};
 
 	enum representation_type_t {
 		i16, u16, i32, u32, i64, u64, float32
@@ -96,7 +98,6 @@ namespace {
 		bool map_error_displayed{false};
 	};
 
-	int main_socket = -1;
 
 	auto initializeSpdlog(const std::string& application_name) {
 		spdlog::init_thread_pool(8192, 1);
@@ -271,7 +272,7 @@ namespace {
 			if (!is_json_object(source, config.source))
 				throw std::runtime_error("source not found");
 
-			int oldness = std::time(nullptr) - source.at(config.source).value("date", 0);
+			const auto oldness = std::time(nullptr) - source.at(config.source).value("date", 0);
 			if (oldness > 10 && !config.ignore_oldness)
 				throw std::runtime_error("data too old");
 
@@ -658,12 +659,12 @@ auto main(int argc, char **argv) -> int{
 		try {
 			auto result = options.parse(argc, argv);
 
-			if(result.count("help") != 0u) {
+			if (result.count("help") != 0u) {
 				spdlog::get("console")->info(options.help());
 				return EXIT_SUCCESS;
 			}
 
-			if(result.count("version") != 0u) {
+			if (result.count("version") != 0u) {
 				spdlog::get("console")->info("bemos-modbus version: {}", appVersion());
 
 				if (result.count("verbose") != 0u) {
@@ -676,44 +677,44 @@ auto main(int argc, char **argv) -> int{
 				return EXIT_SUCCESS;
 			}
 
-			if(daemon) {
-				#ifdef ENABLE_SYSTEMD_STATUS
-				if(systemd_logger->sinks().size() > 1)
-					systemd_logger->sinks().erase(systemd_logger->sinks().begin());
-				#endif
-
-				spdlog::info("daemonized");
-			}
-
-			if(result.count("suppress_syslog") != 0u) {
+			if (daemon) {
 				#ifdef ENABLE_SYSTEMD_STATUS
 				if(default_logger->sinks().size() > 1)
 					default_logger->sinks().erase(default_logger->sinks().begin());
 				#endif
+
+				spdlog::info("start daemonized");;
 			}
 
-			if(result.count("verbose") != 0u) {
+			if (result.count("suppress_syslog") != 0u) {
+				#ifdef ENABLE_SYSTEMD_STATUS
+				if (default_logger->sinks().size() > 1)
+					default_logger->sinks().erase(default_logger->sinks().begin());
+				#endif
+			}
+
+			if (result.count("verbose") != 0u) {
 				spdlog::set_level(spdlog::level::debug);
 				spdlog::info("verbose output enabled");
 			}
 
-			if(result.count("verbose") > 1) {
+			if (result.count("verbose") > 1) {
 				spdlog::set_level(spdlog::level::trace);
 				spdlog::info("trace output enabled");
 			}
 
-			if(result.count("password") != 0u) {
+			if (result.count("password") != 0u) {
 				password = bestsens::netHelper::sha512(result["password"].as<std::string>());
 			}
 
-			if(result.count("map_file") != 0u) {
+			if (result.count("map_file") != 0u) {
 				spdlog::info("map file set to {}", map_file);
 			}
 
-			if(result.count("timeout") != 0u) {
+			if (result.count("timeout") != 0u) {
 				spdlog::info("modbus timeout set to {} us", mb_to_usec);
 			}
-		} catch(const std::exception& e) {
+		} catch (const std::exception& e) {
 			spdlog::get("console")->error(e.what());
 			return EXIT_FAILURE;
 		}
@@ -801,7 +802,7 @@ auto main(int argc, char **argv) -> int{
 	FD_SET(main_socket, &refset);
 
 	/* Keep track of the max file descriptor */
-	int fdmax = main_socket;
+	auto fdmax = main_socket;
 	int active_connections = 0;
 
 	bestsens::system_helper::systemd::ready();
