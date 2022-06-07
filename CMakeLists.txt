@@ -10,20 +10,29 @@ include(pre)
 
 include(fmt)
 include(spdlog)
+include(mbedtls)
 include(bone_helper)
 include(add_cxxopts)
 include(json)
 
 add_executable(${MAIN_EXECUTABLE}
 	src/bemos_modbus.cpp
-	src/version.cpp)
-
-target_include_directories(${MAIN_EXECUTABLE}
-	PRIVATE include
-	PRIVATE $ENV{SDKTARGETSYSROOT}/usr/include/modbus
 )
 
-target_link_libraries(${MAIN_EXECUTABLE} PRIVATE 
+add_library(version src/version.cpp)
+add_dependencies(version version_header)
+
+target_include_directories(${MAIN_EXECUTABLE} PRIVATE
+	include
+	$ENV{SDKTARGETSYSROOT}/usr/include/modbus
+)
+
+target_include_directories(version PRIVATE include)
+
+target_link_libraries(version PRIVATE fmt common_compile_options)
+target_link_libraries(${MAIN_EXECUTABLE} PRIVATE
+	common_compile_options
+	version
 	fmt
 	spdlog
 	bone_helper

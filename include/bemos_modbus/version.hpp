@@ -8,7 +8,7 @@ auto appGitBranch() -> std::string;
 auto appGitRevision() -> std::string;
 auto appCompileDate() -> std::string;
 auto appCompilerVersion() -> std::string;
-constexpr auto appIsDev() -> bool;
+auto appIsDev() -> bool;
 
 constexpr auto appIsDebug() -> bool {
 #ifdef DEBUG

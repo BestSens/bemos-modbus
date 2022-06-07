@@ -13,3 +13,6 @@
 [submodule "libs/fmt"]
 	path = libs/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "libs/mbedtls"]
+	path = libs/mbedtls
+	url = https://github.com/Mbed-TLS/mbedtls.git

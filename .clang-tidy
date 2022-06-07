@@ -15,16 +15,13 @@ Checks: >-
     -misc-no-recursion,
     modernize-*,
     performance-*,
-    hicpp-*,
-    -hicpp-braces-around-statements,
-    -hicpp-uppercase-literal-suffix,    
     portability-*,
     readability-*,
     -readability-magic-numbers,
     -readability-else-after-return,
     -readability-braces-around-statements,
     -readability-uppercase-literal-suffix
-HeaderFilterRegex: 'include/bemos_skeletton/.*'
+HeaderFilterRegex: ''
 FormatStyle: none
 CheckOptions:
   - { key: readability-identifier-naming.ClassCase,     value: CamelCase  }

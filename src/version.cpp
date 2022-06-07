@@ -17,7 +17,7 @@ constexpr auto stringsEqual(const char* a, const char* b) -> bool {
 	return *a == *b && (*a == '\0' || stringsEqual(a + 1, b + 1));
 }
 
-constexpr auto appIsDev() -> bool {
+auto appIsDev() -> bool {
 	return !stringsEqual(app_version_branch, "master") && (std::isdigit(app_version_branch[0]) == 0);
 }
 
@@ -43,7 +43,7 @@ auto appGitRevision() -> std::string {
 }
 
 auto appCompileDate() -> std::string {
-	return {__TIMESTAMP__};
+	return {timestamp};
 }
 
 auto appCompilerVersion() -> std::string {

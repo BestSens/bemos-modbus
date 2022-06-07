@@ -385,7 +385,7 @@ namespace {
 		return static_cast<unsigned int>(grp->gr_gid);
 	}
 
-	auto drop_priviledges() -> bool {
+	auto dropPriviledges() -> bool {
 		try {
 			auto userid = get_uid("bemos");
 			auto groupid = get_gid("bemos_users");
@@ -406,7 +406,7 @@ namespace {
 		return true;
 	}
 
-	void data_aquisition(const std::string& conn_target, const std::string& conn_port, const std::string& username,
+	void dataAquisition(const std::string& conn_target, const std::string& conn_port, const std::string& username,
 						 const std::string& password, modbus_mapping_t* mb_mapping, const std::string& map_file,
 						 unsigned int coil_amount, unsigned int ext_amount) {
 		std::vector<std::string> source_list = {};
@@ -617,7 +617,7 @@ auto main(int argc, char **argv) -> int{
 	std::string username = login_user;
 	std::string password = login_hash;
 
-	std::string map_file = "";
+	std::string map_file;
 
 	initializeSignalHandler();
 
@@ -777,14 +777,14 @@ auto main(int argc, char **argv) -> int{
 		/* process is running as root, drop privileges */
 		spdlog::info("running as root, dropping privileges");
 
-		if (!drop_priviledges()) {
+		if (!dropPriviledges()) {
 			spdlog::critical("dropping of privileges failed!");
 			return EXIT_FAILURE;
 		}
 	}
 
 	/* spawn aquire thread */ 
-	std::thread aquire_inst(data_aquisition, std::ref(conn_target), std::ref(conn_port), std::ref(username), std::ref(password), mb_mapping, map_file, coil_amount, ext_amount);
+	std::thread aquire_inst(dataAquisition, std::ref(conn_target), std::ref(conn_port), std::ref(username), std::ref(password), mb_mapping, map_file, coil_amount, ext_amount);
 
 	/* Deamonize */
 	if (daemon) {
@@ -857,7 +857,7 @@ auto main(int argc, char **argv) -> int{
 
 					const auto rc = getnameinfo((struct sockaddr *)&clientaddr, addrlen, hoststr.data(), hoststr.size(), portstr.data(), portstr.size(), NI_NUMERICHOST | NI_NUMERICSERV); 
 					if (rc == 0)
-						spdlog::info("[0x{:02X}] client connected from {}:{}", newfd, hoststr.data(), portstr);
+						spdlog::info("[0x{:02X}] client connected from {}:{}", newfd, hoststr.data(), portstr.data());
 					else
 						spdlog::info("[0x{:02X}] client connected", newfd);
 

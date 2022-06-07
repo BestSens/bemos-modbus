@@ -1,8 +1,8 @@
 ## 2.1.1 (unreleased)
 - automatically determine target gid & uid
-- update nlohmann/json library to v3.10.4 (https://github.com/nlohmann/json/releases/tag/v3.10.4)
-- update fmt library to v8.0.1 (https://github.com/fmtlib/fmt/releases/tag/8.0.1)
-- update spdlog library to v1.9.2 (https://github.com/gabime/spdlog/releases/tag/v1.9.2)
+- update nlohmann/json library to v3.10.5 (https://github.com/nlohmann/json/releases/tag/v3.10.5)
+- update fmt library to v8.1.1 (https://github.com/fmtlib/fmt/releases/tag/8.1.1)
+- update spdlog library to v1.10.0 (https://github.com/gabime/spdlog/releases/tag/v1.10.0)
 - update cxxopts library to v3.0.0 (https://github.com/jarro2783/cxxopts/releases/tag/v3.0.0)
 
 ## 2.1.0 (01.12.2020)
