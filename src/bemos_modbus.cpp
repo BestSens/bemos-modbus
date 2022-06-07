@@ -160,12 +160,14 @@ namespace {
 		sigaction(SIGHUP, &action, nullptr);
 	}
 
-	auto update_configuration(bestsens::jsonNetHelper& socket, const std::string& map_file, std::vector<std::string>& source_list, std::vector<std::string>& identifier_list) -> std::vector<mb_map_config_t> {
+	auto updateConfiguration(bestsens::jsonNetHelper& socket, const std::string& map_file,
+							 std::vector<std::string>& source_list, std::vector<std::string>& identifier_list)
+		-> std::vector<mb_map_config_t> {
 		std::vector<mb_map_config_t> mb_map_config = {};
 		json mb_register_map;
 		bool has_map_file = false;
 
-		if (map_file != "") {
+		if (!map_file.empty()) {
 			std::ifstream file;
 			json file_data;
 			file.open(map_file);
@@ -201,16 +203,16 @@ namespace {
 		/*
 		 * get register map from server when not loaded from file
 		 */
-		if (has_map_file == false) {
+		if (!has_map_file) {
 			json channel_attributes;
-			if (socket.send_command("channel_attributes", channel_attributes, {{"name", "mb_register_map"}})) {
+			if (socket.send_command("channel_attributes", channel_attributes, {{"name", "mb_register_map"}}) != 0) {
 				spdlog::trace("mb_register_map: {}", channel_attributes.dump(2));
 
-				if (is_json_array(channel_attributes, "payload") && channel_attributes["payload"].size() > 0)
+				if (is_json_array(channel_attributes, "payload") && !channel_attributes["payload"].empty())
 					mb_register_map = channel_attributes["payload"];
 			}
 
-			if (!mb_register_map.size())
+			if (mb_register_map.empty())
 				mb_register_map = default_mb_register_map;
 		}
 
@@ -219,27 +221,25 @@ namespace {
 		for (const auto& e : mb_register_map) {
 			try {
 				mb_map_config_t temp;
-				temp.start_address = e["start address"];
-				temp.source = e.value("source", "channel_data");;
-				temp.identifier = e["attribute"];
+				temp.start_address = e.at("start address").get<uint16_t>();
+				temp.source = e.value("source", "channel_data");
+				temp.identifier = e.at("attribute").get<std::string>();
 				temp.ignore_oldness = e.value("ignore oldness", false);
 				temp.map_error_displayed = false;
 
 				std::string type = e.value("type", "i16");
 
-				if(type == "i16")
-					temp.type = i16;
-				else if(type == "u16")
+				if (type == "u16")
 					temp.type = u16;
-				else if(type == "i32")
+				else if (type == "i32")
 					temp.type = i32;
-				else if(type == "u32")
+				else if (type == "u32")
 					temp.type = u32;
-				else if(type == "i64")
+				else if (type == "i64")
 					temp.type = i64;
-				else if(type == "u64")
+				else if (type == "u64")
 					temp.type = u64;
-				else if(type == "float")
+				else if (type == "float")
 					temp.type = float32;
 				else
 					temp.type = i16;
@@ -334,7 +334,7 @@ namespace {
 
 			config.map_error_displayed = false;
 		} catch (const std::exception& e) {
-			if (config.map_error_displayed == false) {
+			if (!config.map_error_displayed) {
 				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
 				config.map_error_displayed = true;
 			}
@@ -367,34 +367,34 @@ namespace {
 		}
 	}
 
-	auto get_uid(const std::string& user_name) -> unsigned int {
-		struct passwd *pwd = getpwnam(user_name.c_str());
+	auto getUID(const std::string& user_name) -> unsigned int {
+		struct passwd *pwd = getpwnam(user_name.c_str()); // NOLINT (concurrency-mt-unsafe)
 
 		if (pwd == nullptr)
-			throw std::runtime_error(fmt::format("error getting uid: {}", strerror(errno)));
+			throw std::runtime_error(fmt::format("error getting uid: {}", strerror_s(errno)));
 		
 		return static_cast<unsigned int>(pwd->pw_uid);
 	}
 
-	auto get_gid(const std::string& group_name) -> unsigned int {
-		struct group *grp = getgrnam(group_name.c_str());
+	auto getGID(const std::string& group_name) -> unsigned int {
+		struct group *grp = getgrnam(group_name.c_str()); // NOLINT (concurrency-mt-unsafe)
 
 		if (grp == nullptr)
-			throw std::runtime_error(fmt::format("error getting gid: {}", strerror(errno)));
+			throw std::runtime_error(fmt::format("error getting gid: {}", strerror_s(errno)));
 
 		return static_cast<unsigned int>(grp->gr_gid);
 	}
 
 	auto dropPriviledges() -> bool {
 		try {
-			auto userid = get_uid("bemos");
-			auto groupid = get_gid("bemos_users");
+			auto userid = getUID("bemos");
+			auto groupid = getGID("bemos_users");
 
 			if (setgid(groupid) != 0)
-				throw std::runtime_error(fmt::format("setgid: Unable to drop group privileges: {}", strerror(errno)));
+				throw std::runtime_error(fmt::format("setgid: Unable to drop group privileges: {}", strerror_s(errno)));
 
 			if (setuid(userid) != 0)
-				throw std::runtime_error(fmt::format("setuid: Unable to drop user privileges: {}", strerror(errno)));
+				throw std::runtime_error(fmt::format("setuid: Unable to drop user privileges: {}", strerror_s(errno)));
 
 			if (setuid(0) != -1) 
 				throw std::runtime_error("managed to regain root privileges");
@@ -456,7 +456,7 @@ namespace {
 			spdlog::info("connected to BeMoS");
 
 			try {
-				bestsens::loopTimer dataTimer(std::chrono::seconds(1), 0);
+				bestsens::loopTimer data_timer(std::chrono::seconds(1), 0);
 
 				/*
 				 * register "external_data" algo
@@ -470,12 +470,12 @@ namespace {
 				}
 
 				while (running) {
-					dataTimer.wait_on_tick();
+					data_timer.wait_on_tick();
 					if (!running)
 						break;
 
 					if (reload_config) {
-						mb_map_config = update_configuration(socket, map_file, source_list, identifier_list);
+						mb_map_config = updateConfiguration(socket, map_file, source_list, identifier_list);
 
 						spdlog::info("configuration reloaded");
 
@@ -488,11 +488,11 @@ namespace {
 					json channel_data;
 
 					static struct {
-						int id = -1;
-						int ts;
+						int id{-1};
+						int ts{0};
 					} ack;
 
-					if (socket.send_command("channel_data", channel_data, {{"name", source_list}, {"filter", identifier_list}})) {
+					if (socket.send_command("channel_data", channel_data, {{"name", source_list}, {"filter", identifier_list}}) != 0) {
 						spdlog::trace("{}", channel_data.dump(2));
 
 						if (is_json_object(channel_data, "payload")) {
@@ -531,7 +531,7 @@ namespace {
 						{"name", "active_coils"}
 					};
 
-					if (socket.send_command("channel_data", channel_data, {{"name", "active_coils"}}, 2)) {
+					if (socket.send_command("channel_data", channel_data, {{"name", "active_coils"}}, 2) != 0) {
 						spdlog::trace("{}", channel_data.dump(2));
 
 						if (is_json_object(channel_data, "payload")) {
@@ -541,8 +541,8 @@ namespace {
 								if (is_json_object(payload, "active_coils")) {
 									active_coils["data"] = payload.at("active_coils");
 
-									if (active_coils["data"].count("date"))
-										active_coils["data"].erase("date");
+									if (active_coils.at("data").contains("date"))
+										active_coils.at("data").erase("date");
 								}
 							} catch (...) {}
 						}
@@ -556,29 +556,32 @@ namespace {
 						if (ext_amount > 0) {
 							std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 
-							for (unsigned int i = 0; i < ext_amount * 2; i++) 
-								mb_mapping->tab_input_registers[100 + i] = mb_mapping->tab_registers[100 + i];
+							for (unsigned int i = 0; i < ext_amount * 2u; ++i) 
+								mb_mapping->tab_input_registers[100u + i] = mb_mapping->tab_registers[100u + i];
 
-							for (unsigned int i = 0; i < ext_amount; i++)
-								payload["data"]["ext_" + std::to_string(i + 1)] = modbus_get_float_abcd(mb_mapping->tab_registers + 100 + i * 2);
+							for (unsigned int i = 0; i < ext_amount; ++i)
+								payload["data"]["ext_" + std::to_string(i + 1u)] =
+									modbus_get_float_abcd(mb_mapping->tab_registers + (100u + (i * 2u)));
 						}
 
 						if (coil_amount > 0) {
 							std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 							
-							for(unsigned int i = 0; i < coil_amount; i++) {
-								bool coil_state = mb_mapping->tab_bits[i];
+							for(unsigned int i = 0; i < coil_amount; ++i) {
+								bool coil_state = mb_mapping->tab_bits[i] != 0u;
 
 								const std::string coil_name("coil_" + std::to_string(i + 1));
 
 								payload["data"][coil_name] = coil_state;
 
 								if (!coil_state) {
-									if(active_coils["data"].count(coil_name))
-										active_coils["data"].erase(coil_name);
+									if (active_coils.at("data").contains(coil_name))
+										active_coils.at("data").erase(coil_name);
 								} else {
-									if (active_coils["data"].count(coil_name) == 0 || ack.id == static_cast<int>(i) + 1)
+									if (!active_coils.at("data").contains(coil_name) ||
+										ack.id == static_cast<int>(i) + 1) {
 										active_coils["data"][coil_name] = std::time(nullptr);
+									}
 								}
 							}
 
@@ -600,8 +603,8 @@ namespace {
 }
 
 auto main(int argc, char **argv) -> int{
-	modbus_mapping_t *mb_mapping;
-	modbus_t *ctx;
+	modbus_mapping_t *mb_mapping{nullptr};
+	modbus_t *ctx{nullptr};
 
 	assert(running.is_lock_free());
 
@@ -822,7 +825,7 @@ auto main(int argc, char **argv) -> int{
 				continue;
 
 			if (running)
-				spdlog::critical("error: pselect() failure: {}", strerror(errno));
+				spdlog::critical("error: pselect() failure: {}", strerror_s(errno));
 			
 			break;
 		}
@@ -832,12 +835,13 @@ auto main(int argc, char **argv) -> int{
 			    continue;
 
 			if (current_socket == main_socket) {
-				socklen_t addrlen;
-				struct sockaddr_storage clientaddr;
+				socklen_t addrlen{};
+				struct sockaddr_storage clientaddr{};
 
 				addrlen = sizeof(clientaddr);
 				memset(&clientaddr, 0, sizeof(clientaddr));
-				int newfd = accept(current_socket, (struct sockaddr *)&clientaddr, &addrlen);
+				// NOLINTNEXTLINE (cppcoreguidelines-pro-type-reinterpret-cast)
+				int newfd = accept(current_socket, reinterpret_cast<struct sockaddr*>(&clientaddr), &addrlen);
 
 				if (newfd == -1) {
 					spdlog::error("error: accept() failure");
@@ -855,7 +859,9 @@ auto main(int argc, char **argv) -> int{
 					std::array<char, NI_MAXHOST> hoststr{};
 					std::array<char, NI_MAXSERV> portstr{};
 
-					const auto rc = getnameinfo((struct sockaddr *)&clientaddr, addrlen, hoststr.data(), hoststr.size(), portstr.data(), portstr.size(), NI_NUMERICHOST | NI_NUMERICSERV); 
+					const auto rc =
+						getnameinfo(reinterpret_cast<struct sockaddr*>(&clientaddr), addrlen, hoststr.data(), // NOLINT (cppcoreguidelines-pro-type-reinterpret-cast)
+									hoststr.size(), portstr.data(), portstr.size(), NI_NUMERICHOST | NI_NUMERICSERV);
 					if (rc == 0)
 						spdlog::info("[0x{:02X}] client connected from {}:{}", newfd, hoststr.data(), portstr.data());
 					else
@@ -869,7 +875,7 @@ auto main(int argc, char **argv) -> int{
 				const auto rc = modbus_receive(ctx, query.data());
 
 				if (rc == -1 && errno != EMBBADCRC) {
-					spdlog::debug("[0x{:02X}] modbus connection closed: {}", current_socket, std::strerror(errno));
+					spdlog::debug("[0x{:02X}] modbus connection closed: {}", current_socket, strerror_s(errno));
 					close(current_socket);
 
 					/* Remove from reference set */
@@ -882,7 +888,7 @@ auto main(int argc, char **argv) -> int{
 				} else {
 					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 					if (modbus_reply(ctx, query.data(), rc, mb_mapping) == -1)
-						spdlog::error("[0x{:02X}] error sending modbus reply: {}", current_socket, std::strerror(errno));
+						spdlog::error("[0x{:02X}] error sending modbus reply: {}", current_socket, strerror_s(errno));
 				}
 			}
 		}

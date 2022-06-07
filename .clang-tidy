@@ -20,7 +20,8 @@ Checks: >-
     -readability-magic-numbers,
     -readability-else-after-return,
     -readability-braces-around-statements,
-    -readability-uppercase-literal-suffix
+    -readability-uppercase-literal-suffix,
+    -readability-identifier-length
 HeaderFilterRegex: ''
 FormatStyle: none
 CheckOptions:
