@@ -59,4 +59,4 @@ Adressbereich 40001-40099
 | 0119          | uint16        | ext_19				 | -       |
 
 ## Fehlerwerte
-Nicht gesetzte Register werden mit 0xFFFF initialisiert. Im Fehlerfall wird 0x8000 ausgegeben.
+Nicht gesetzte Register werden mit 0xFFFF initialisiert. Im Fehlerfall wird 0x8000 ausgegeben (0x7FC00000 (NaN) bei Floatwerten).

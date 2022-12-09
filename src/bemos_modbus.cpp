@@ -47,6 +47,7 @@
 #include "bone_helper/system_helper.hpp"
 
 using namespace bestsens;
+using json = nlohmann::json;
 
 namespace {
 	constexpr auto mb_register_size = 1024;
@@ -160,7 +161,7 @@ namespace {
 		sigaction(SIGHUP, &action, nullptr);
 	}
 
-	auto updateConfiguration(bestsens::jsonNetHelper& socket, const std::string& map_file,
+	auto updateConfiguration(bestsens::netHelper& socket, const std::string& map_file,
 							 std::vector<std::string>& source_list, std::vector<std::string>& identifier_list)
 		-> std::vector<mb_map_config_t> {
 		std::vector<mb_map_config_t> mb_map_config = {};
@@ -227,7 +228,7 @@ namespace {
 				temp.ignore_oldness = e.value("ignore oldness", false);
 				temp.map_error_displayed = false;
 
-				std::string type = e.value("type", "i16");
+				const auto type = e.value("type", "i16");
 
 				if (type == "u16")
 					temp.type = u16;
@@ -254,8 +255,8 @@ namespace {
 
 				if (it2 == identifier_list.end())
 					identifier_list.push_back(temp.identifier);
-			} catch (const std::exception& e) {
-				spdlog::error("error adding register map: {}", e.what());
+			} catch (const std::exception& err) {
+				spdlog::error("error adding register map: {}", err.what());
 			}
 		}
 
@@ -276,13 +277,13 @@ namespace {
 			if (oldness > 10 && !config.ignore_oldness)
 				throw std::runtime_error("data too old");
 
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+			const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			switch (config.type){
 				case i16:
 					{
 						const auto response = source.at(config.source).at(config.identifier).get<int16_t>();
-						mb_mapping->tab_input_registers[config.start_address] = response;
-						mb_mapping->tab_registers[config.start_address] = response;
+						mb_mapping->tab_input_registers[config.start_address] = static_cast<uint16_t>(response);
+						mb_mapping->tab_registers[config.start_address] = static_cast<uint16_t>(response);
 					}
 					break;
 				case u16:
@@ -339,7 +340,7 @@ namespace {
 				config.map_error_displayed = true;
 			}
 
-			std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+			const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			switch (config.type){
 				case i16:
 				case u16:
@@ -357,7 +358,7 @@ namespace {
 					setErrornous(mb_mapping->tab_registers + config.start_address, 4);
 					break;
 				case float32:
-					float err = NAN;
+					const auto err = std::nanf("");
 					modbus_set_float_badc(err, mb_mapping->tab_input_registers + config.start_address);
 					modbus_set_float_badc(err, mb_mapping->tab_registers + config.start_address);
 					break;
@@ -390,14 +391,17 @@ namespace {
 			auto userid = getUID("bemos");
 			auto groupid = getGID("bemos_users");
 
-			if (setgid(groupid) != 0)
+			if (setgid(groupid) != 0) {
 				throw std::runtime_error(fmt::format("setgid: Unable to drop group privileges: {}", strerror_s(errno)));
+			}
 
-			if (setuid(userid) != 0)
+			if (setuid(userid) != 0) {
 				throw std::runtime_error(fmt::format("setuid: Unable to drop user privileges: {}", strerror_s(errno)));
+			}
 
-			if (setuid(0) != -1) 
+			if (setuid(0) != -1) {
 				throw std::runtime_error("managed to regain root privileges");
+			}
 		} catch (const std::exception& e) {
 			spdlog::error("error dropping privileges: {}", e.what());
 			return false;
@@ -412,13 +416,13 @@ namespace {
 		std::vector<std::string> source_list = {};
 		std::vector<std::string> identifier_list = {};
 		std::vector<mb_map_config_t> mb_map_config;
-		bestsens::loopTimer timer(std::chrono::seconds(5), 1);
+		bestsens::loopTimer timer(std::chrono::seconds(5), true);
 		while (running) {
 			/*
 			 * set error flags and default values for mappings
 			 */
 			{
-				std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+				const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 				for (int i = 0; i < mb_mapping->nb_input_registers; i++) {
 					mb_mapping->tab_input_registers[i] = 0xFFFF;
 					mb_mapping->tab_registers[i] = 0xFFFF;
@@ -430,14 +434,15 @@ namespace {
 			 * wait before reconnecting
 			 */
 			timer.wait_on_tick();
-			if (!running)
+			if (!running) {
 				break;
+			}
 
 			/*
 			 * open socket
 			 */
-			bestsens::jsonNetHelper socket(conn_target, conn_port);
-			socket.set_timeout(1);
+			bestsens::netHelper socket(conn_target, conn_port);
+			socket.set_timeout_ms(1000);
 
 			/*
 			 * connect to socket
@@ -489,7 +494,7 @@ namespace {
 
 					static struct {
 						int id{-1};
-						int ts{0};
+						time_t ts{0};
 					} ack;
 
 					if (socket.send_command("channel_data", channel_data, {{"name", source_list}, {"filter", identifier_list}}) != 0) {
@@ -499,7 +504,7 @@ namespace {
 							const json payload = channel_data.at("payload");
 
 							try {
-								int new_ts = payload.at("ack").at("date").get<int>();
+								const auto new_ts = payload.at("ack").at("date").get<time_t>();
 
 								if (new_ts != ack.ts) {
 									ack.id = payload.at("ack").at("ack").get<int>();
@@ -541,8 +546,9 @@ namespace {
 								if (is_json_object(payload, "active_coils")) {
 									active_coils["data"] = payload.at("active_coils");
 
-									if (active_coils.at("data").contains("date"))
+									if (active_coils.at("data").contains("date")) {
 										active_coils.at("data").erase("date");
+									}
 								}
 							} catch (...) {}
 						}
@@ -554,7 +560,7 @@ namespace {
 						};
 
 						if (ext_amount > 0) {
-							std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+							const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 
 							for (unsigned int i = 0; i < ext_amount * 2u; ++i) 
 								mb_mapping->tab_input_registers[100u + i] = mb_mapping->tab_registers[100u + i];
@@ -565,7 +571,7 @@ namespace {
 						}
 
 						if (coil_amount > 0) {
-							std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+							const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 							
 							for(unsigned int i = 0; i < coil_amount; ++i) {
 								bool coil_state = mb_mapping->tab_bits[i] != 0u;
@@ -610,7 +616,7 @@ auto main(int argc, char **argv) -> int{
 
 	bool daemon = false;
 	std::string port = "502";
-	int mb_to_usec = 500000;
+	uint32_t mb_to_usec = 500000;
 
 	unsigned int coil_amount = 0;
 	unsigned int ext_amount = 0;
@@ -630,7 +636,7 @@ auto main(int argc, char **argv) -> int{
 		const char* env_username = std::getenv("BEMOS_USERNAME"); // NOLINT(concurrency-mt-unsafe)
 		const char* env_password = std::getenv("BEMOS_PASSWORD"); // NOLINT(concurrency-mt-unsafe)
 
-		if(env_username != nullptr && env_password != nullptr) {
+		if (env_username != nullptr && env_password != nullptr) {
 			username = std::string(env_username);
 			password = std::string(env_password);
 		}
@@ -654,7 +660,7 @@ auto main(int argc, char **argv) -> int{
 			("map_file", "json encoded text file with Modbus mapping data", cxxopts::value<std::string>(map_file))
 			("suppress_syslog", "do not output syslog messages to stdout")
 			("o,listen", "modbus tcp listen port", cxxopts::value<std::string>(port))
-			("t,timeout", "modbus tcp timeout in us", cxxopts::value<int>(mb_to_usec))
+			("t,timeout", "modbus tcp timeout in us", cxxopts::value<uint32_t>(mb_to_usec))
 			("coil_amount", "amount of coils injected to external_data", cxxopts::value<unsigned int>(coil_amount))
 			("ext_amount", "amount of ext values injected to external_data", cxxopts::value<unsigned int>(ext_amount))
 		;
@@ -723,11 +729,12 @@ auto main(int argc, char **argv) -> int{
 		}
 	}
 
-	if (coil_amount > mb_register_size)
+	if (coil_amount > mb_register_size) {
 		coil_amount = mb_register_size;
-
-	if (ext_amount > (mb_register_size - 100) / 2)
+	}
+	if (ext_amount > (mb_register_size - 100) / 2) {
 		ext_amount = (mb_register_size - 100) / 2;
+	}
 
 	spdlog::info("starting bemos-modbus {}", appVersion());
 	spdlog::info("generating {} coils", coil_amount);
@@ -736,9 +743,11 @@ auto main(int argc, char **argv) -> int{
 	/*
 	 * Test IEEE 754
 	 */
-	if (!std::numeric_limits<float>::is_iec559)
-		spdlog::warn("application wasn't compiled with IEEE 754 standard, floating point values may be out of standard");
-	
+	if (!std::numeric_limits<float>::is_iec559) {
+		spdlog::warn(
+			"application wasn't compiled with IEEE 754 standard, floating point values may be out of standard");
+	}
+
 	ctx = modbus_new_tcp_pi("::0", port.c_str());
 	
 	if (ctx == nullptr) {
@@ -786,8 +795,9 @@ auto main(int argc, char **argv) -> int{
 		}
 	}
 
-	/* spawn aquire thread */ 
-	std::thread aquire_inst(dataAquisition, std::ref(conn_target), std::ref(conn_port), std::ref(username), std::ref(password), mb_mapping, map_file, coil_amount, ext_amount);
+	/* spawn aquire thread */
+	std::thread aquire_inst(dataAquisition, std::ref(conn_target), std::ref(conn_port), std::ref(username),
+							std::ref(password), mb_mapping, map_file, coil_amount, ext_amount);
 
 	/* Deamonize */
 	if (daemon) {
@@ -821,18 +831,21 @@ auto main(int argc, char **argv) -> int{
 		}
 
 		if (pselect(fdmax+1, &rdset, nullptr, nullptr, nullptr, nullptr) == -1) {
-			if (errno == EINTR)
+			if (errno == EINTR) {
 				continue;
+			}
 
-			if (running)
+			if (running) {
 				spdlog::critical("error: pselect() failure: {}", strerror_s(errno));
-			
+			}
+
 			break;
 		}
 
 		for (int current_socket = 0; current_socket <= fdmax; current_socket++) {
-			if (!FD_ISSET(current_socket, &rdset))
-			    continue;
+			if (!FD_ISSET(current_socket, &rdset)) {
+				continue;
+			}
 
 			if (current_socket == main_socket) {
 				socklen_t addrlen{};
@@ -845,7 +858,7 @@ auto main(int argc, char **argv) -> int{
 
 				if (newfd == -1) {
 					spdlog::error("error: accept() failure");
-				} else if(newfd >= FD_SETSIZE - 1) {
+				} else if (newfd >= FD_SETSIZE - 1) {
 					close(newfd);
 					spdlog::error("maximum fd reached, connection closed");
 				} else {
@@ -881,12 +894,13 @@ auto main(int argc, char **argv) -> int{
 					/* Remove from reference set */
 					FD_CLR(current_socket, &refset);
 
-					if (current_socket == fdmax)
+					if (current_socket == fdmax) {
 						fdmax--;
+					}
 
 					active_connections--;
 				} else {
-					std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
+					const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 					if (modbus_reply(ctx, query.data(), rc, mb_mapping) == -1)
 						spdlog::error("[0x{:02X}] error sending modbus reply: {}", current_socket, strerror_s(errno));
 				}

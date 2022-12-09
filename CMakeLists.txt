@@ -1,19 +1,30 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.24)
 
 project(bemos-modbus VERSION 2.1.1)
 
 set(MAIN_EXECUTABLE bemos_modbus)
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libs/bone_helper/cpm")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libs/bone_helper/cmake")
+
+set(Boost_USE_STATIC_LIBS ON)
 
 include(pre)
 
+option(USE_SYSTEM_SSL "Use system OpenSSL instead of bundled" ON)
+
+if(NOT USE_SYSTEM_SSL)
+	include(openssl)
+endif()
+
 include(fmt)
 include(spdlog)
-include(mbedtls)
 include(bone_helper)
 include(add_cxxopts)
 include(json)
+
+if(BUILD_TESTS)
+	include(catch)
+endif()
 
 add_executable(${MAIN_EXECUTABLE}
 	src/bemos_modbus.cpp
@@ -39,6 +50,8 @@ target_link_libraries(${MAIN_EXECUTABLE} PRIVATE
 	cxxopts
 	nlohmann_json::nlohmann_json
 	modbus
+	ssl
+	crypto
 )
 
 include(post)
