@@ -35,9 +35,11 @@ add_executable(${MAIN_EXECUTABLE}
 add_library(version src/version.cpp)
 add_dependencies(version version_header)
 
+find_package(PkgConfig)
+pkg_check_modules(SYSTEMD "libmodbus" REQUIRED)
+
 target_include_directories(${MAIN_EXECUTABLE} PRIVATE
 	include
-	$ENV{SDKTARGETSYSROOT}/usr/include/modbus
 )
 
 target_include_directories(version PRIVATE include)

@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 #include <getopt.h>
 #include <grp.h>
-#include <modbus.h>
+#include <modbus/modbus.h>
 #include <pwd.h>
 #include <sys/select.h>
 #include <sys/socket.h>
