@@ -17,6 +17,7 @@ stages:
 
 ## Build ##############################################################################################################
 build:arm:
+    image: docker.bestsens.de/bone/musl-build-image
     stage: build
     artifacts:
         <<: *artifacts
@@ -40,16 +41,14 @@ build:arm:
                     -DBUILD_TESTS=OFF
                     -DENABLE_WCONVERSION=OFF
                     -DCRITICAL_WARNINGS=OFF
-                    -DUSE_SYSTEM_SSL=OFF
-                    -DCMAKE_TOOLCHAIN_FILE=../libs/bone_helper/cmake/arm-poky-linux-gnueabi.cmake;
+                    -DCMAKE_TOOLCHAIN_FILE=../libs/bone_helper/cmake/arm-unknown-linux-musleabihf.cmake;
             else
                 cmake .. -GNinja
                     -DCPM_SOURCE_CACHE=../.cache/CPM
                     -DBUILD_TESTS=OFF
                     -DENABLE_WCONVERSION=OFF
                     -DCRITICAL_WARNINGS=OFF
-                    -DUSE_SYSTEM_SSL=OFF
-                    -DCMAKE_TOOLCHAIN_FILE=../libs/bone_helper/cmake/arm-poky-linux-gnueabi.cmake;
+                    -DCMAKE_TOOLCHAIN_FILE=../libs/bone_helper/cmake/arm-unknown-linux-musleabihf.cmake;
             fi
         - ninja
 

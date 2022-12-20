@@ -10,6 +10,8 @@ set(Boost_USE_STATIC_LIBS ON)
 
 include(pre)
 
+set(CMAKE_CXX_STANDARD 20)
+
 option(USE_SYSTEM_SSL "Use system OpenSSL instead of bundled" ON)
 
 if(NOT USE_SYSTEM_SSL)
@@ -50,8 +52,6 @@ target_link_libraries(${MAIN_EXECUTABLE} PRIVATE
 	cxxopts
 	nlohmann_json::nlohmann_json
 	modbus
-	ssl
-	crypto
 )
 
 include(post)

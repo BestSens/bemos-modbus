@@ -6,7 +6,6 @@
  */
 
 #include <arpa/inet.h>
-#include <execinfo.h>
 #include <getopt.h>
 #include <grp.h>
 #include <modbus.h>

@@ -7,6 +7,8 @@
 - update bone_helper submodule to use boost::asio
 - add IPv6 support
 - allow to use statically compiled OpenSSL 3
+- allow to use with musl
+- require C++20
 
 ## 2.1.0 (01.12.2020)
 - add gitrev and branch to `--version` info
