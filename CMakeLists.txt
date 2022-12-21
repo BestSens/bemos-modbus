@@ -36,10 +36,11 @@ add_library(version src/version.cpp)
 add_dependencies(version version_header)
 
 find_package(PkgConfig)
-pkg_check_modules(SYSTEMD "libmodbus" REQUIRED)
+pkg_check_modules(modbus REQUIRED "libmodbus")
 
 target_include_directories(${MAIN_EXECUTABLE} PRIVATE
 	include
+	${modbus_INCLUDE_DIRS}
 )
 
 target_include_directories(version PRIVATE include)
@@ -53,7 +54,7 @@ target_link_libraries(${MAIN_EXECUTABLE} PRIVATE
 	bone_helper
 	cxxopts
 	nlohmann_json::nlohmann_json
-	modbus
+	${modbus_LINK_LIBRARIES}
 )
 
 include(post)
