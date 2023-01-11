@@ -1,4 +1,4 @@
-## 2.1.1 (unreleased)
+## 2.1.1 (11.01.2023)
 - automatically determine target gid & uid
 - update nlohmann/json library to v3.11.2 (https://github.com/nlohmann/json/releases/tag/v3.11.2)
 - update fmt library to v9.1.0 (https://github.com/fmtlib/fmt/releases/tag/9.1.0)
