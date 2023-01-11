@@ -359,21 +359,43 @@ namespace {
 	}
 
 	auto getUID(const std::string& user_name) -> unsigned int {
-		struct passwd *pwd = getpwnam(user_name.c_str()); // NOLINT (concurrency-mt-unsafe)
+		struct passwd pwd{};
+		struct passwd *pwd_ptr{nullptr};
 
-		if (pwd == nullptr)
-			throw std::runtime_error(fmt::format("error getting uid: {}", strerror_s(errno)));
-		
-		return static_cast<unsigned int>(pwd->pw_uid);
+		auto bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+		if (bufsize < 0) {
+			bufsize = 16384;
+		}
+
+		thread_local std::vector<char> pwd_buffer(static_cast<size_t>(bufsize));
+
+		const auto retval = getpwnam_r(user_name.c_str(), &pwd, pwd_buffer.data(), pwd_buffer.size(), &pwd_ptr);
+
+		if (retval != 0) {
+			throw std::runtime_error(fmt::format("error getting uid: {}", bestsens::strerror_s(retval)));
+		}
+
+		return pwd_ptr->pw_uid;
 	}
 
 	auto getGID(const std::string& group_name) -> unsigned int {
-		struct group *grp = getgrnam(group_name.c_str()); // NOLINT (concurrency-mt-unsafe)
+		struct group grp{};
+		struct group *grp_ptr{nullptr};
 
-		if (grp == nullptr)
-			throw std::runtime_error(fmt::format("error getting gid: {}", strerror_s(errno)));
+		auto bufsize = sysconf(_SC_GETGR_R_SIZE_MAX);
+		if (bufsize < 0) {
+			bufsize = 16384;
+		}
 
-		return static_cast<unsigned int>(grp->gr_gid);
+		thread_local std::vector<char> grp_buffer(static_cast<size_t>(bufsize));
+
+		const auto retval = getgrnam_r(group_name.c_str(), &grp, grp_buffer.data(), grp_buffer.size(), &grp_ptr);
+
+		if (retval != 0) {
+			throw std::runtime_error(fmt::format("error getting gid: {}", bestsens::strerror_s(retval)));
+		}
+
+		return grp_ptr->gr_gid;
 	}
 
 	auto dropPriviledges() -> bool {
