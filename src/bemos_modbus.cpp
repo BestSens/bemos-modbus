@@ -473,7 +473,7 @@ namespace {
 			spdlog::info("connected to BeMoS");
 
 			try {
-				bestsens::loopTimer data_timer(std::chrono::seconds(1), 0);
+				bestsens::loopTimer data_timer(std::chrono::seconds(1), false);
 
 				/*
 				 * register "external_data" algo
