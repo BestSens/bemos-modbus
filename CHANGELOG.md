@@ -1,3 +1,5 @@
+## 2.1.2 (unreleased)
+
 ## 2.1.1 (11.01.2023)
 - automatically determine target gid & uid
 - update nlohmann/json library to v3.11.2 (https://github.com/nlohmann/json/releases/tag/v3.11.2)
