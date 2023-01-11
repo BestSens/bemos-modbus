@@ -13,6 +13,7 @@ stages:
     paths:
         - build/bemos_modbus
         - build/bemos_modbus.dbg
+        - README.md
 
 ## Build ##############################################################################################################
 build:arm:
