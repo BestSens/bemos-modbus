@@ -1,3 +1,15 @@
+## 2.1.1 (11.01.2023)
+- automatically determine target gid & uid
+- update nlohmann/json library to v3.11.2 (https://github.com/nlohmann/json/releases/tag/v3.11.2)
+- update fmt library to v9.1.0 (https://github.com/fmtlib/fmt/releases/tag/9.1.0)
+- update spdlog library to v1.11.0 (https://github.com/gabime/spdlog/releases/tag/v1.11.0)
+- update cxxopts library to v3.0.0 (https://github.com/jarro2783/cxxopts/releases/tag/v3.0.0)
+- update bone_helper submodule to use boost::asio
+- add IPv6 support
+- allow to use statically compiled OpenSSL 3
+- allow to use with musl
+- require C++20
+
 ## 2.1.0 (01.12.2020)
 - add gitrev and branch to `--version` info
 - fix for crash connection handling
