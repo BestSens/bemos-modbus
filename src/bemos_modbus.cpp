@@ -5,22 +5,13 @@
  *	  Author: Jan Schöppach
  */
 
-#include <arpa/inet.h>
-#include <getopt.h>
 #include <grp.h>
 #include <modbus/modbus.h>
 #include <pwd.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 #include <atomic>
 #include <cerrno>
 #include <csignal>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <mutex>
