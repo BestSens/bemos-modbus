@@ -515,14 +515,16 @@ namespace {
 					json j;
 					socket.send_command("register_analysis", j, {{"name", "external_data"}});
 
-					if (coil_amount > 0)
+					if (coil_amount > 0) {
 						socket.send_command("register_analysis", j, {{"name", "active_coils"}});
+					}
 				}
 
 				while (running) {
 					data_timer.wait_on_tick();
-					if (!running)
+					if (!running) {
 						break;
+					}
 
 					if (reload_config) {
 						mb_map_config = updateConfiguration(socket, map_file, source_list, identifier_list);
@@ -598,7 +600,7 @@ namespace {
 							} catch (...) {}
 						}
 					}
-					
+
 					try {
 						json payload = {
 							{"name", "external_data"}
@@ -607,12 +609,14 @@ namespace {
 						if (ext_amount > 0) {
 							const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 
-							for (unsigned int i = 0; i < ext_amount * 2u; ++i) 
+							for (unsigned int i = 0; i < ext_amount * 2u; ++i) {
 								mb_mapping->tab_input_registers[100u + i] = mb_mapping->tab_registers[100u + i];
+							}
 
-							for (unsigned int i = 0; i < ext_amount; ++i)
+							for (unsigned int i = 0; i < ext_amount; ++i) {
 								payload["data"]["ext_" + std::to_string(i + 1u)] =
 									modbus_get_float_abcd(mb_mapping->tab_registers + (100u + (i * 2u)));
+							}
 						}
 
 						if (coil_amount > 0) {
@@ -626,10 +630,12 @@ namespace {
 								payload["data"][coil_name] = coil_state;
 
 								if (!coil_state) {
-									if (active_coils.at("data").contains(coil_name))
+									if (active_coils.contains("data") && active_coils.at("data").contains(coil_name)) {
 										active_coils.at("data").erase(coil_name);
+									}
 								} else {
-									if (!active_coils.at("data").contains(coil_name) ||
+									if (!(active_coils.contains("data") &&
+										  active_coils.at("data").contains(coil_name)) ||
 										ack.id == static_cast<int>(i) + 1) {
 										active_coils["data"][coil_name] = std::time(nullptr);
 									}
