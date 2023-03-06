@@ -14,6 +14,7 @@
 #include <csignal>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -63,14 +64,14 @@ namespace {
 		{{"start address", 21}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
 		{{"start address", 23}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
 		{{"start address", 25}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "axial force"}},
-		{{"start address", 27}, {"type", "float"}, {"source", "ks_data_0"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}},
-		{{"start address", 29}, {"type", "float"}, {"source", "ks_data_1"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}},
-		{{"start address", 31}, {"type", "float"}, {"source", "ks_data_2"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}},
-		{{"start address", 33}, {"type", "float"}, {"source", "ks_data_3"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}},
-		{{"start address", 35}, {"type", "float"}, {"source", "ks_data_4"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}},
-		{{"start address", 37}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}},
-		{{"start address", 39}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}},
-		{{"start address", 41}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}},
+		{{"start address", 27}, {"type", "float"}, {"source", "ks_data_0"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}, {"coerce_zero", 0.25}},
+		{{"start address", 29}, {"type", "float"}, {"source", "ks_data_1"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}, {"coerce_zero", 0.25}},
+		{{"start address", 31}, {"type", "float"}, {"source", "ks_data_2"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}, {"coerce_zero", 0.25}},
+		{{"start address", 33}, {"type", "float"}, {"source", "ks_data_3"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}, {"coerce_zero", 0.25}},
+		{{"start address", 35}, {"type", "float"}, {"source", "ks_data_4"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}, {"coerce_zero", 0.25}},
+		{{"start address", 37}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}, {"coerce_zero", 0.25}},
+		{{"start address", 39}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}, {"coerce_zero", 0.25}},
+		{{"start address", 41}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "effective peak velocity"}, {"ignore oldness", true}, {"coerce_zero", 0.25}},
 		{{"start address", 43}, {"type", "i16"}, {"source", "ack"}, {"attribute", "ack"}, {"ignore oldness", true}},
 		{{"start address", 44}, {"type", "i32"}, {"source", "ks_data_0"}, {"attribute", "date"}, {"ignore oldness", true}},
 		{{"start address", 46}, {"type", "i32"}, {"source", "ks_data_1"}, {"attribute", "date"}, {"ignore oldness", true}},
@@ -99,6 +100,7 @@ namespace {
 		std::string identifier;
 		bool ignore_oldness{false};
 		bool map_error_displayed{false};
+		double coerce_limit{std::numeric_limits<double>::quiet_NaN()};
 	};
 
 
@@ -229,6 +231,7 @@ namespace {
 				temp.identifier = e.at("attribute").get<std::string>();
 				temp.ignore_oldness = e.value("ignore oldness", false);
 				temp.map_error_displayed = false;
+				temp.coerce_limit = e.value("coerce_zero", std::numeric_limits<double>::quiet_NaN());
 
 				const auto type = e.value("type", "i16");
 
@@ -270,6 +273,17 @@ namespace {
 			start[i] = 0x8000;
 	}
 
+	template <typename T>
+	auto coerceToZeroWhenRequired(T value, const mb_map_config_t& config) -> T {
+		if (std::isfinite(config.coerce_limit)) {
+			if (value <= static_cast<T>(config.coerce_limit)) {
+				return T{0};
+			}
+		}
+
+		return value;
+	}
+
 	void addModbusValue(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
 			if (!is_json_object(source, config.source))
@@ -283,49 +297,56 @@ namespace {
 			switch (config.type){
 				case i16:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<int16_t>();
+						auto response = source.at(config.source).at(config.identifier).get<int16_t>();
+						response = coerceToZeroWhenRequired(response, config);
 						mb_mapping->tab_input_registers[config.start_address] = static_cast<uint16_t>(response);
 						mb_mapping->tab_registers[config.start_address] = static_cast<uint16_t>(response);
 					}
 					break;
 				case u16:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<uint16_t>();
+						auto response = source.at(config.source).at(config.identifier).get<uint16_t>();
+						response = coerceToZeroWhenRequired(response, config);
 						mb_mapping->tab_input_registers[config.start_address] = response;
 						mb_mapping->tab_registers[config.start_address] = response;
 					}
 					break;
 				case i32:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<int32_t>();
+						auto response = source.at(config.source).at(config.identifier).get<int32_t>();
+						response = coerceToZeroWhenRequired(response, config);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case u32:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<uint32_t>();
+						auto response = source.at(config.source).at(config.identifier).get<uint32_t>();
+						response = coerceToZeroWhenRequired(response, config);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case i64:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<uint64_t>();
+						auto response = source.at(config.source).at(config.identifier).get<uint64_t>();
+						response = coerceToZeroWhenRequired(response, config);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case u64:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<int64_t>();
+						auto response = source.at(config.source).at(config.identifier).get<int64_t>();
+						response = coerceToZeroWhenRequired(response, config);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case float32:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<float>();
+						auto response = source.at(config.source).at(config.identifier).get<float>();
+						response = coerceToZeroWhenRequired(response, config);
 						modbus_set_float_badc(response, mb_mapping->tab_input_registers + config.start_address);
 						modbus_set_float_badc(response, mb_mapping->tab_registers + config.start_address);
 					}
