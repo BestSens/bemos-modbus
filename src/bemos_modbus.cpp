@@ -275,24 +275,31 @@ namespace {
 			start[i] = 0x8000;
 	}
 
-	template <typename T>
-	auto coerceToZeroWhenRequired(T value, const mb_map_config_t& config) -> T {
+	auto coerceToZeroWhenRequired(double value, const mb_map_config_t& config) -> double {
 		if (std::isfinite(config.coerce_limit)) {
-			if (value <= static_cast<T>(config.coerce_limit)) {
-				return T{0};
+			if (value <= config.coerce_limit) {
+				return 0;
 			}
 		}
 
 		return value;
 	}
 
-	template <typename T>
-	auto scaleWhenRequired(T value, const mb_map_config_t& config) -> T {
+	auto scaleWhenRequired(double value, const mb_map_config_t& config) -> double {
 		if (std::isfinite(config.scale)) {
-			return static_cast<T>(static_cast<double>(value) * config.scale);
+			return value * config.scale;
 		}
 
 		return value;
+	}
+
+	template <typename T>
+	auto getJsonValue(const json& source, const mb_map_config_t& config) -> T {
+		auto value = source.at(config.source).at(config.identifier).get<double>();
+		value = scaleWhenRequired(value, config);
+		value = coerceToZeroWhenRequired(value, config);
+
+		return static_cast<T>(value);
 	}
 
 	void addModbusValue(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
@@ -308,63 +315,49 @@ namespace {
 			switch (config.type){
 				case i16:
 					{
-						auto response = source.at(config.source).at(config.identifier).get<int16_t>();
-						response = coerceToZeroWhenRequired(response, config);
-						response = scaleWhenRequired(response, config);
+						const auto response = getJsonValue<int16_t>(source, config);
 						mb_mapping->tab_input_registers[config.start_address] = static_cast<uint16_t>(response);
 						mb_mapping->tab_registers[config.start_address] = static_cast<uint16_t>(response);
 					}
 					break;
 				case u16:
 					{
-						auto response = source.at(config.source).at(config.identifier).get<uint16_t>();
-						response = coerceToZeroWhenRequired(response, config);
-						response = scaleWhenRequired(response, config);
+						const auto response = getJsonValue<uint16_t>(source, config);
 						mb_mapping->tab_input_registers[config.start_address] = response;
 						mb_mapping->tab_registers[config.start_address] = response;
 					}
 					break;
 				case i32:
 					{
-						auto response = source.at(config.source).at(config.identifier).get<int32_t>();
-						response = coerceToZeroWhenRequired(response, config);
-						response = scaleWhenRequired(response, config);
+						const auto response = getJsonValue<int32_t>(source, config);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case u32:
 					{
-						auto response = source.at(config.source).at(config.identifier).get<uint32_t>();
-						response = coerceToZeroWhenRequired(response, config);
-						response = scaleWhenRequired(response, config);
+						const auto response = getJsonValue<uint32_t>(source, config);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case i64:
 					{
-						auto response = source.at(config.source).at(config.identifier).get<uint64_t>();
-						response = coerceToZeroWhenRequired(response, config);
-						response = scaleWhenRequired(response, config);
+						const auto response = getJsonValue<int64_t>(source, config);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case u64:
 					{
-						auto response = source.at(config.source).at(config.identifier).get<int64_t>();
-						response = coerceToZeroWhenRequired(response, config);
-						response = scaleWhenRequired(response, config);
+						const auto response = getJsonValue<uint64_t>(source, config);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case float32:
 					{
-						auto response = source.at(config.source).at(config.identifier).get<float>();
-						response = coerceToZeroWhenRequired(response, config);
-						response = scaleWhenRequired(response, config);
+						const auto response = getJsonValue<float>(source, config);
 						modbus_set_float_badc(response, mb_mapping->tab_input_registers + config.start_address);
 						modbus_set_float_badc(response, mb_mapping->tab_registers + config.start_address);
 					}
