@@ -56,10 +56,10 @@ namespace {
 		{{"start address", 5}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
 		{{"start address", 7}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
 		{{"start address", 9}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "kurtosis coe"}},
-		{{"start address", 11}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean rt"}},
-		{{"start address", 13}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean amp"}},
-		{{"start address", 15}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms rt"}},
-		{{"start address", 17}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "rms amp"}},
+		{{"start address", 11}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean coe"}},
+		{{"start address", 13}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean int"}, {"scale", 10}},
+		{{"start address", 15}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "stdev coe"}},
+		{{"start address", 17}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "stdev int"}},
 		{{"start address", 19}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp0"}},
 		{{"start address", 21}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
 		{{"start address", 23}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
@@ -101,6 +101,7 @@ namespace {
 		bool ignore_oldness{false};
 		bool map_error_displayed{false};
 		double coerce_limit{std::numeric_limits<double>::quiet_NaN()};
+		double scale{std::numeric_limits<double>::quiet_NaN()};
 	};
 
 
@@ -232,6 +233,7 @@ namespace {
 				temp.ignore_oldness = e.value("ignore oldness", false);
 				temp.map_error_displayed = false;
 				temp.coerce_limit = e.value("coerce_zero", std::numeric_limits<double>::quiet_NaN());
+				temp.scale = e.value("scale", std::numeric_limits<double>::quiet_NaN());
 
 				const auto type = e.value("type", "i16");
 
@@ -284,6 +286,15 @@ namespace {
 		return value;
 	}
 
+	template <typename T>
+	auto scaleWhenRequired(T value, const mb_map_config_t& config) -> T {
+		if (std::isfinite(config.scale)) {
+			return static_cast<T>(static_cast<double>(value) * config.scale);
+		}
+
+		return value;
+	}
+
 	void addModbusValue(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
 			if (!is_json_object(source, config.source))
@@ -299,6 +310,7 @@ namespace {
 					{
 						auto response = source.at(config.source).at(config.identifier).get<int16_t>();
 						response = coerceToZeroWhenRequired(response, config);
+						response = scaleWhenRequired(response, config);
 						mb_mapping->tab_input_registers[config.start_address] = static_cast<uint16_t>(response);
 						mb_mapping->tab_registers[config.start_address] = static_cast<uint16_t>(response);
 					}
@@ -307,6 +319,7 @@ namespace {
 					{
 						auto response = source.at(config.source).at(config.identifier).get<uint16_t>();
 						response = coerceToZeroWhenRequired(response, config);
+						response = scaleWhenRequired(response, config);
 						mb_mapping->tab_input_registers[config.start_address] = response;
 						mb_mapping->tab_registers[config.start_address] = response;
 					}
@@ -315,6 +328,7 @@ namespace {
 					{
 						auto response = source.at(config.source).at(config.identifier).get<int32_t>();
 						response = coerceToZeroWhenRequired(response, config);
+						response = scaleWhenRequired(response, config);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
@@ -323,6 +337,7 @@ namespace {
 					{
 						auto response = source.at(config.source).at(config.identifier).get<uint32_t>();
 						response = coerceToZeroWhenRequired(response, config);
+						response = scaleWhenRequired(response, config);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
@@ -331,6 +346,7 @@ namespace {
 					{
 						auto response = source.at(config.source).at(config.identifier).get<uint64_t>();
 						response = coerceToZeroWhenRequired(response, config);
+						response = scaleWhenRequired(response, config);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
@@ -339,6 +355,7 @@ namespace {
 					{
 						auto response = source.at(config.source).at(config.identifier).get<int64_t>();
 						response = coerceToZeroWhenRequired(response, config);
+						response = scaleWhenRequired(response, config);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
@@ -347,6 +364,7 @@ namespace {
 					{
 						auto response = source.at(config.source).at(config.identifier).get<float>();
 						response = coerceToZeroWhenRequired(response, config);
+						response = scaleWhenRequired(response, config);
 						modbus_set_float_badc(response, mb_mapping->tab_input_registers + config.start_address);
 						modbus_set_float_badc(response, mb_mapping->tab_registers + config.start_address);
 					}
