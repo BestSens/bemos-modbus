@@ -5,9 +5,7 @@
  *	  Author: Jan Schöppach
  */
 
-#include <grp.h>
 #include <modbus/modbus.h>
-#include <pwd.h>
 
 #include <atomic>
 #include <cerrno>
@@ -32,9 +30,9 @@
 #include "spdlog/sinks/systemd_sink.h"
 #endif
 
-#include "bone_helper/netHelper.hpp"
-#include "bone_helper/loopTimer.hpp"
 #include "bone_helper/jsonHelper.hpp"
+#include "bone_helper/loopTimer.hpp"
+#include "bone_helper/netHelper.hpp"
 #include "bone_helper/system_helper.hpp"
 
 using namespace bestsens;
@@ -102,6 +100,7 @@ namespace {
 		bool map_error_displayed{false};
 		double coerce_limit{std::numeric_limits<double>::quiet_NaN()};
 		double scale{std::numeric_limits<double>::quiet_NaN()};
+		double offset{std::numeric_limits<double>::quiet_NaN()};
 	};
 
 
@@ -211,15 +210,18 @@ namespace {
 		 */
 		if (!has_map_file) {
 			json channel_attributes;
+
 			if (socket.send_command("channel_attributes", channel_attributes, {{"name", "mb_register_map"}}) != 0) {
 				spdlog::trace("mb_register_map: {}", channel_attributes.dump(2));
 
-				if (is_json_array(channel_attributes, "payload") && !channel_attributes["payload"].empty())
+				if (is_json_array(channel_attributes, "payload") && !channel_attributes["payload"].empty()) {
 					mb_register_map = channel_attributes["payload"];
+				}
 			}
 
-			if (mb_register_map.empty())
+			if (mb_register_map.empty()) {
 				mb_register_map = default_mb_register_map;
+			}
 		}
 
 		source_list.clear();
@@ -234,34 +236,38 @@ namespace {
 				temp.map_error_displayed = false;
 				temp.coerce_limit = e.value("coerce_zero", std::numeric_limits<double>::quiet_NaN());
 				temp.scale = e.value("scale", std::numeric_limits<double>::quiet_NaN());
+				temp.offset = e.value("offset", std::numeric_limits<double>::quiet_NaN());
 
 				const auto type = e.value("type", "i16");
 
-				if (type == "u16")
+				if (type == "u16") {
 					temp.type = u16;
-				else if (type == "i32")
+				} else if (type == "i32") {
 					temp.type = i32;
-				else if (type == "u32")
+				} else if (type == "u32") {
 					temp.type = u32;
-				else if (type == "i64")
+				} else if (type == "i64") {
 					temp.type = i64;
-				else if (type == "u64")
+				} else if (type == "u64") {
 					temp.type = u64;
-				else if (type == "float")
+				} else if (type == "float") {
 					temp.type = float32;
-				else
+				} else {
 					temp.type = i16;
+				}
 
 				mb_map_config.push_back(temp);
 
-				auto it = std::find(source_list.begin(), source_list.end(), temp.source);
-				auto it2 = std::find(identifier_list.begin(), identifier_list.end(), temp.identifier);
+				const auto it = std::find(source_list.begin(), source_list.end(), temp.source);
+				const auto it2 = std::find(identifier_list.begin(), identifier_list.end(), temp.identifier);
 
-				if (it == source_list.end())
+				if (it == source_list.end()) {
 					source_list.push_back(temp.source);
+				}
 
-				if (it2 == identifier_list.end())
+				if (it2 == identifier_list.end()) {
 					identifier_list.push_back(temp.identifier);
+				}
 			} catch (const std::exception& err) {
 				spdlog::error("error adding register map: {}", err.what());
 			}
@@ -271,8 +277,9 @@ namespace {
 	}
 
 	void setErrornous(uint16_t * start, ssize_t length) {
-		for (ssize_t i = 0; i < length; i++)
+		for (ssize_t i = 0; i < length; ++i) {
 			start[i] = 0x8000;
+		}
 	}
 
 	auto coerceToZeroWhenRequired(double value, const mb_map_config_t& config) -> double {
@@ -293,10 +300,19 @@ namespace {
 		return value;
 	}
 
+	auto offsetWhenRequired(double value, const mb_map_config_t& config) -> double {
+		if (std::isfinite(config.offset)) {
+			return value + config.offset;
+		}
+
+		return value;
+	}
+
 	template <typename T>
 	auto getJsonValue(const json& source, const mb_map_config_t& config) -> T {
 		auto value = source.at(config.source).at(config.identifier).get<double>();
 		value = scaleWhenRequired(value, config);
+		value = offsetWhenRequired(value, config);
 		value = coerceToZeroWhenRequired(value, config);
 
 		return static_cast<T>(value);
@@ -304,12 +320,14 @@ namespace {
 
 	void addModbusValue(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
-			if (!is_json_object(source, config.source))
+			if (!is_json_object(source, config.source)) {
 				throw std::runtime_error("source not found");
+			}
 
 			const auto oldness = std::time(nullptr) - source.at(config.source).value("date", 0);
-			if (oldness > 10 && !config.ignore_oldness)
+			if (oldness > 10 && !config.ignore_oldness) {
 				throw std::runtime_error("data too old");
+			}
 
 			const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			switch (config.type){
@@ -400,70 +418,6 @@ namespace {
 
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
-	}
-
-	auto getUID(const std::string& user_name) -> unsigned int {
-		struct passwd pwd{};
-		struct passwd *pwd_ptr{nullptr};
-
-		auto bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
-		if (bufsize < 0) {
-			bufsize = 16384;
-		}
-
-		thread_local std::vector<char> pwd_buffer(static_cast<size_t>(bufsize));
-
-		const auto retval = getpwnam_r(user_name.c_str(), &pwd, pwd_buffer.data(), pwd_buffer.size(), &pwd_ptr);
-
-		if (retval != 0) {
-			throw std::runtime_error(fmt::format("error getting uid: {}", bestsens::strerror_s(retval)));
-		}
-
-		return pwd_ptr->pw_uid;
-	}
-
-	auto getGID(const std::string& group_name) -> unsigned int {
-		struct group grp{};
-		struct group *grp_ptr{nullptr};
-
-		auto bufsize = sysconf(_SC_GETGR_R_SIZE_MAX);
-		if (bufsize < 0) {
-			bufsize = 16384;
-		}
-
-		thread_local std::vector<char> grp_buffer(static_cast<size_t>(bufsize));
-
-		const auto retval = getgrnam_r(group_name.c_str(), &grp, grp_buffer.data(), grp_buffer.size(), &grp_ptr);
-
-		if (retval != 0) {
-			throw std::runtime_error(fmt::format("error getting gid: {}", bestsens::strerror_s(retval)));
-		}
-
-		return grp_ptr->gr_gid;
-	}
-
-	auto dropPriviledges() -> bool {
-		try {
-			auto userid = getUID("bemos");
-			auto groupid = getGID("bemos_users");
-
-			if (setgid(groupid) != 0) {
-				throw std::runtime_error(fmt::format("setgid: Unable to drop group privileges: {}", strerror_s(errno)));
-			}
-
-			if (setuid(userid) != 0) {
-				throw std::runtime_error(fmt::format("setuid: Unable to drop user privileges: {}", strerror_s(errno)));
-			}
-
-			if (setuid(0) != -1) {
-				throw std::runtime_error("managed to regain root privileges");
-			}
-		} catch (const std::exception& e) {
-			spdlog::error("error dropping privileges: {}", e.what());
-			return false;
-		}
-
-		return true;
 	}
 
 	void dataAquisition(const std::string& conn_target, const std::string& conn_port, const std::string& username,
@@ -847,12 +801,14 @@ auto main(int argc, char **argv) -> int{
 
 	spdlog::info("listening on port {}", port);
 
-	if (getuid() == 0) {
+	if (system_helper::getUID() == 0) {
 		/* process is running as root, drop privileges */
 		spdlog::info("running as root, dropping privileges");
 
-		if (!dropPriviledges()) {
-			spdlog::critical("dropping of privileges failed!");
+		try {
+			system_helper::dropPriviledges();
+		} catch (const std::exception& e) {
+			spdlog::critical("dropping of privileges failed! ({})", e.what());
 			return EXIT_FAILURE;
 		}
 	}
