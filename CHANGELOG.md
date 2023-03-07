@@ -1,4 +1,5 @@
 ## 2.1.2 (unreleased)
+- add support for `scale`, `offset` and `coerce_zero` configuration options
 
 ## 2.1.1 (11.01.2023)
 - automatically determine target gid & uid
