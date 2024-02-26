@@ -79,11 +79,20 @@ namespace {
 		i16, u16, i32, u32, i64, u64, float32
 	};
 
+	enum class merge_type_t {
+		none, sum, average, min, max
+	};
+
+	struct mb_map_measurement_t {
+		std::string source;
+		std::string identifier;
+	};
+
 	struct mb_map_config_t {
 		uint16_t start_address{};
 		representation_type_t type{};
-		std::string source;
-		std::string identifier;
+		std::vector<mb_map_measurement_t> measurements;
+		merge_type_t merge_type{merge_type_t::none};
 		bool ignore_oldness{false};
 		bool map_error_displayed{false};
 		double coerce_limit{std::numeric_limits<double>::quiet_NaN()};
@@ -153,6 +162,38 @@ namespace {
 		sigaction(SIGHUP, &action, nullptr);
 	}
 
+	auto parseMergeType(const std::string& merge_type) -> merge_type_t {
+		if (merge_type == "sum") {
+			return merge_type_t::sum;
+		} else if (merge_type == "average" || merge_type == "mean") {
+			return merge_type_t::average;
+		} else if (merge_type == "min") {
+			return merge_type_t::min;
+		} else if (merge_type == "max") {
+			return merge_type_t::max;
+		} else {
+			return merge_type_t::none;
+		}
+	}
+
+	auto parseType(std::string_view type) -> representation_type_t {
+		if (type == "u16") {
+			return u16;
+		} else if (type == "i32") {
+			return i32;
+		} else if (type == "u32") {
+			return u32;
+		} else if (type == "i64") {
+			return i64;
+		} else if (type == "u64") {
+			return u64;
+		} else if (type == "float" || type == "float32" || type == "f32") {
+			return float32;
+		} else {
+			return i16;
+		}
+	}
+
 	auto updateConfiguration(bestsens::netHelper& socket, const std::string& map_file,
 							 std::vector<std::string>& source_list, std::vector<std::string>& identifier_list)
 		-> std::vector<mb_map_config_t> {
@@ -218,8 +259,25 @@ namespace {
 			try {
 				mb_map_config_t temp;
 				temp.start_address = e.at("start address").get<uint16_t>();
-				temp.source = e.value("source", "channel_data");
-				temp.identifier = e.at("attribute").get<std::string>();
+
+				if (!e.contains("measurements")) {
+					temp.merge_type = merge_type_t::none;
+					const auto source = e.value("source", "channel_data");
+					const auto identifier = e.at("attribute").get<std::string>();
+					temp.measurements.push_back({source, identifier});
+				} else {
+					const auto measurements = e.at("measurements");
+					for (const auto& m : measurements) {
+						mb_map_measurement_t measurement;
+						measurement.source = m.at("source").get<std::string>();
+						measurement.identifier = m.at("attribute").get<std::string>();
+						temp.measurements.push_back(measurement);
+					}
+
+					const auto merge_type = e.value("merge type", "average");
+					temp.merge_type = parseMergeType(merge_type);
+				}
+
 				temp.ignore_oldness = e.value("ignore oldness", false);
 				temp.map_error_displayed = false;
 				temp.coerce_limit = e.value("coerce_zero", std::numeric_limits<double>::quiet_NaN());
@@ -227,34 +285,21 @@ namespace {
 				temp.offset = e.value("offset", std::numeric_limits<double>::quiet_NaN());
 
 				const auto type = e.value("type", "i16");
-
-				if (type == "u16") {
-					temp.type = u16;
-				} else if (type == "i32") {
-					temp.type = i32;
-				} else if (type == "u32") {
-					temp.type = u32;
-				} else if (type == "i64") {
-					temp.type = i64;
-				} else if (type == "u64") {
-					temp.type = u64;
-				} else if (type == "float") {
-					temp.type = float32;
-				} else {
-					temp.type = i16;
-				}
+				temp.type = parseType(type);
 
 				mb_map_config.push_back(temp);
 
-				const auto it = std::find(source_list.begin(), source_list.end(), temp.source);
-				const auto it2 = std::find(identifier_list.begin(), identifier_list.end(), temp.identifier);
+				for (const auto& measurement : temp.measurements) {
+					const auto it = std::find(source_list.begin(), source_list.end(), measurement.source);
+					const auto it2 = std::find(identifier_list.begin(), identifier_list.end(), measurement.identifier);
 
-				if (it == source_list.end()) {
-					source_list.push_back(temp.source);
-				}
+					if (it == source_list.end()) {
+						source_list.push_back(measurement.source);
+					}
 
-				if (it2 == identifier_list.end()) {
-					identifier_list.push_back(temp.identifier);
+					if (it2 == identifier_list.end()) {
+						identifier_list.push_back(measurement.identifier);
+					}
 				}
 			} catch (const std::exception& err) {
 				spdlog::error("error adding register map: {}", err.what());
@@ -297,24 +342,45 @@ namespace {
 	}
 
 	template <typename T>
-	auto getJsonValue(const json& source, const mb_map_config_t& config) -> T {
-		auto value = source.at(config.source).at(config.identifier).get<double>();
-		value = scaleWhenRequired(value, config);
-		value = offsetWhenRequired(value, config);
-		value = coerceToZeroWhenRequired(value, config);
+	auto getJsonValues(const json& source, const mb_map_config_t& config) -> std::vector<T> {
+		std::vector<T> response;
+		response.reserve(config.measurements.size());
+		for (const auto& e : config.measurements) {
+			auto value = source.at(e.source).at(e.identifier).get<double>();
+			value = scaleWhenRequired(value, config);
+			value = offsetWhenRequired(value, config);
+			value = coerceToZeroWhenRequired(value, config);
+			response.push_back(static_cast<T>(value));
+		}
 
-		return static_cast<T>(value);
+		return response;
+	}
+
+	template <typename T>
+	auto getJsonValue(const json& source, const mb_map_config_t& config) -> T {
+		const auto values = getJsonValues<T>(source, config);
+	
+		switch (config.merge_type) {
+			case merge_type_t::none: return values.front();
+			case merge_type_t::sum: return std::accumulate(values.begin(), values.end(), T(0));
+			case merge_type_t::average: return std::accumulate(values.begin(), values.end(), T(0)) / T(values.size());
+			case merge_type_t::min: return *std::min_element(values.begin(), values.end());
+			case merge_type_t::max: return *std::max_element(values.begin(), values.end());
+			default: throw std::runtime_error("merge type not found");
+		}
 	}
 
 	void addModbusValue(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
-			if (!is_json_object(source, config.source)) {
-				throw std::runtime_error("source not found");
-			}
+			for (const auto& e : config.measurements) {
+				if (!source.at(e.source).contains(e.identifier)) {
+					throw std::runtime_error("source or identifier not found");
+				}
 
-			const auto oldness = std::time(nullptr) - source.at(config.source).value("date", 0);
-			if (oldness > 10 && !config.ignore_oldness) {
-				throw std::runtime_error("data too old");
+				const auto oldness = std::time(nullptr) - source.at(e.source).value("date", 0);
+				if (oldness > 10 && !config.ignore_oldness) {
+					throw std::runtime_error("data too old");
+				}
 			}
 
 			const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
@@ -376,7 +442,7 @@ namespace {
 			config.map_error_displayed = false;
 		} catch (const std::exception& e) {
 			if (!config.map_error_displayed) {
-				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
+				spdlog::error("error setting map data for 0x{:04X}: {}", config.start_address, e.what());
 				config.map_error_displayed = true;
 			}
 
