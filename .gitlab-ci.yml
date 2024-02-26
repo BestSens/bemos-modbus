@@ -1,4 +1,4 @@
-image: docker.bestsens.de/bone/docker-build-image:2.0.3
+image: docker.bestsens.local/bone/docker-build-image:2.0.3
 
 variables:
     GIT_SUBMODULE_STRATEGY: recursive
@@ -17,7 +17,7 @@ stages:
 
 ## Build ##############################################################################################################
 build:arm:
-    image: docker.bestsens.de/bone/musl-build-image
+    image: docker.bestsens.local/bone/musl-build-image
     stage: build
     artifacts:
         <<: *artifacts
@@ -131,4 +131,4 @@ release_job:
         assets:
             links:
                 - name: "Linux ARM"
-                  url: "https://gitlab.bestsens.de/bone/bemos-modbus/-/jobs/${GE_JOB_ID}/artifacts/download"
+                  url: "https://gitlab.bestsens.local/bone/bemos-modbus/-/jobs/${GE_JOB_ID}/artifacts/download"
