@@ -1,4 +1,4 @@
-## 2.1.2 (unreleased)
+## 2.2.0 (unreleased)
 - add support for `scale`, `offset` and `coerce_zero` configuration options
 - update nlohmann/json library to v3.11.3 (https://github.com/nlohmann/json/releases/tag/v3.11.3)
 - update fmt library to v10.2.1 (https://github.com/fmtlib/fmt/releases/tag/10.2.1)

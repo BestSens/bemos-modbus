@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(bemos-modbus VERSION 2.1.2)
+project(bemos-modbus VERSION 2.2.0)
 
 set(MAIN_EXECUTABLE bemos_modbus)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libs/bone_helper/cpm")
