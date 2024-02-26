@@ -5,15 +5,14 @@
  *	  Author: Jan Schöppach
  */
 
-#include <grp.h>
 #include <modbus/modbus.h>
-#include <pwd.h>
 
 #include <atomic>
 #include <cerrno>
 #include <csignal>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -31,9 +30,9 @@
 #include "spdlog/sinks/systemd_sink.h"
 #endif
 
-#include "bone_helper/netHelper.hpp"
-#include "bone_helper/loopTimer.hpp"
 #include "bone_helper/jsonHelper.hpp"
+#include "bone_helper/loopTimer.hpp"
+#include "bone_helper/netHelper.hpp"
 #include "bone_helper/system_helper.hpp"
 
 using namespace bestsens;
@@ -80,13 +79,25 @@ namespace {
 		i16, u16, i32, u32, i64, u64, float32
 	};
 
+	enum class merge_type_t {
+		none, sum, average, min, max
+	};
+
+	struct mb_map_measurement_t {
+		std::string source;
+		std::string identifier;
+	};
+
 	struct mb_map_config_t {
 		uint16_t start_address{};
 		representation_type_t type{};
-		std::string source;
-		std::string identifier;
+		std::vector<mb_map_measurement_t> measurements;
+		merge_type_t merge_type{merge_type_t::none};
 		bool ignore_oldness{false};
 		bool map_error_displayed{false};
+		double coerce_limit{std::numeric_limits<double>::quiet_NaN()};
+		double scale{std::numeric_limits<double>::quiet_NaN()};
+		double offset{std::numeric_limits<double>::quiet_NaN()};
 	};
 
 
@@ -151,6 +162,38 @@ namespace {
 		sigaction(SIGHUP, &action, nullptr);
 	}
 
+	auto parseMergeType(const std::string& merge_type) -> merge_type_t {
+		if (merge_type == "sum") {
+			return merge_type_t::sum;
+		} else if (merge_type == "average" || merge_type == "mean") {
+			return merge_type_t::average;
+		} else if (merge_type == "min") {
+			return merge_type_t::min;
+		} else if (merge_type == "max") {
+			return merge_type_t::max;
+		} else {
+			return merge_type_t::none;
+		}
+	}
+
+	auto parseType(std::string_view type) -> representation_type_t {
+		if (type == "u16") {
+			return u16;
+		} else if (type == "i32") {
+			return i32;
+		} else if (type == "u32") {
+			return u32;
+		} else if (type == "i64") {
+			return i64;
+		} else if (type == "u64") {
+			return u64;
+		} else if (type == "float" || type == "float32" || type == "f32") {
+			return float32;
+		} else {
+			return i16;
+		}
+	}
+
 	auto updateConfiguration(bestsens::netHelper& socket, const std::string& map_file,
 							 std::vector<std::string>& source_list, std::vector<std::string>& identifier_list)
 		-> std::vector<mb_map_config_t> {
@@ -196,15 +239,18 @@ namespace {
 		 */
 		if (!has_map_file) {
 			json channel_attributes;
+
 			if (socket.send_command("channel_attributes", channel_attributes, {{"name", "mb_register_map"}}) != 0) {
 				spdlog::trace("mb_register_map: {}", channel_attributes.dump(2));
 
-				if (is_json_array(channel_attributes, "payload") && !channel_attributes["payload"].empty())
+				if (is_json_array(channel_attributes, "payload") && !channel_attributes["payload"].empty()) {
 					mb_register_map = channel_attributes["payload"];
+				}
 			}
 
-			if (mb_register_map.empty())
+			if (mb_register_map.empty()) {
 				mb_register_map = default_mb_register_map;
+			}
 		}
 
 		source_list.clear();
@@ -213,38 +259,48 @@ namespace {
 			try {
 				mb_map_config_t temp;
 				temp.start_address = e.at("start address").get<uint16_t>();
-				temp.source = e.value("source", "channel_data");
-				temp.identifier = e.at("attribute").get<std::string>();
+
+				if (!e.contains("measurements")) {
+					temp.merge_type = merge_type_t::none;
+					const auto source = e.value("source", "channel_data");
+					const auto identifier = e.at("attribute").get<std::string>();
+					temp.measurements.push_back({source, identifier});
+				} else {
+					const auto measurements = e.at("measurements");
+					for (const auto& m : measurements) {
+						mb_map_measurement_t measurement;
+						measurement.source = m.at("source").get<std::string>();
+						measurement.identifier = m.at("attribute").get<std::string>();
+						temp.measurements.push_back(measurement);
+					}
+
+					const auto merge_type = e.value("merge type", "average");
+					temp.merge_type = parseMergeType(merge_type);
+				}
+
 				temp.ignore_oldness = e.value("ignore oldness", false);
 				temp.map_error_displayed = false;
+				temp.coerce_limit = e.value("coerce_zero", std::numeric_limits<double>::quiet_NaN());
+				temp.scale = e.value("scale", std::numeric_limits<double>::quiet_NaN());
+				temp.offset = e.value("offset", std::numeric_limits<double>::quiet_NaN());
 
 				const auto type = e.value("type", "i16");
-
-				if (type == "u16")
-					temp.type = u16;
-				else if (type == "i32")
-					temp.type = i32;
-				else if (type == "u32")
-					temp.type = u32;
-				else if (type == "i64")
-					temp.type = i64;
-				else if (type == "u64")
-					temp.type = u64;
-				else if (type == "float")
-					temp.type = float32;
-				else
-					temp.type = i16;
+				temp.type = parseType(type);
 
 				mb_map_config.push_back(temp);
 
-				auto it = std::find(source_list.begin(), source_list.end(), temp.source);
-				auto it2 = std::find(identifier_list.begin(), identifier_list.end(), temp.identifier);
+				for (const auto& measurement : temp.measurements) {
+					const auto it = std::find(source_list.begin(), source_list.end(), measurement.source);
+					const auto it2 = std::find(identifier_list.begin(), identifier_list.end(), measurement.identifier);
 
-				if (it == source_list.end())
-					source_list.push_back(temp.source);
+					if (it == source_list.end()) {
+						source_list.push_back(measurement.source);
+					}
 
-				if (it2 == identifier_list.end())
-					identifier_list.push_back(temp.identifier);
+					if (it2 == identifier_list.end()) {
+						identifier_list.push_back(measurement.identifier);
+					}
+				}
 			} catch (const std::exception& err) {
 				spdlog::error("error adding register map: {}", err.what());
 			}
@@ -254,66 +310,126 @@ namespace {
 	}
 
 	void setErrornous(uint16_t * start, ssize_t length) {
-		for (ssize_t i = 0; i < length; i++)
+		for (ssize_t i = 0; i < length; ++i) {
 			start[i] = 0x8000;
+		}
+	}
+
+	auto coerceToZeroWhenRequired(double value, const mb_map_config_t& config) -> double {
+		if (std::isfinite(config.coerce_limit)) {
+			if (value <= config.coerce_limit) {
+				return 0;
+			}
+		}
+
+		return value;
+	}
+
+	auto scaleWhenRequired(double value, const mb_map_config_t& config) -> double {
+		if (std::isfinite(config.scale)) {
+			return value * config.scale;
+		}
+
+		return value;
+	}
+
+	auto offsetWhenRequired(double value, const mb_map_config_t& config) -> double {
+		if (std::isfinite(config.offset)) {
+			return value + config.offset;
+		}
+
+		return value;
+	}
+
+	template <typename T>
+	auto getJsonValues(const json& source, const mb_map_config_t& config) -> std::vector<T> {
+		std::vector<T> response;
+		response.reserve(config.measurements.size());
+		for (const auto& e : config.measurements) {
+			auto value = source.at(e.source).at(e.identifier).get<double>();
+			value = scaleWhenRequired(value, config);
+			value = offsetWhenRequired(value, config);
+			value = coerceToZeroWhenRequired(value, config);
+			response.push_back(static_cast<T>(value));
+		}
+
+		return response;
+	}
+
+	template <typename T>
+	auto getJsonValue(const json& source, const mb_map_config_t& config) -> T {
+		const auto values = getJsonValues<T>(source, config);
+	
+		switch (config.merge_type) {
+			case merge_type_t::none: return values.front();
+			case merge_type_t::sum: return std::accumulate(values.begin(), values.end(), T(0));
+			case merge_type_t::average: return std::accumulate(values.begin(), values.end(), T(0)) / T(values.size());
+			case merge_type_t::min: return *std::min_element(values.begin(), values.end());
+			case merge_type_t::max: return *std::max_element(values.begin(), values.end());
+			default: throw std::runtime_error("merge type not found");
+		}
 	}
 
 	void addModbusValue(modbus_mapping_t * mb_mapping, const json& source, mb_map_config_t& config) {
 		try {
-			if (!is_json_object(source, config.source))
-				throw std::runtime_error("source not found");
+			for (const auto& e : config.measurements) {
+				if (!source.at(e.source).contains(e.identifier)) {
+					throw std::runtime_error("source or identifier not found");
+				}
 
-			const auto oldness = std::time(nullptr) - source.at(config.source).value("date", 0);
-			if (oldness > 10 && !config.ignore_oldness)
-				throw std::runtime_error("data too old");
+				const auto oldness = std::time(nullptr) - source.at(e.source).value("date", 0);
+				if (oldness > 10 && !config.ignore_oldness) {
+					throw std::runtime_error("data too old");
+				}
+			}
 
 			const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 			switch (config.type){
 				case i16:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<int16_t>();
+						const auto response = getJsonValue<int16_t>(source, config);
 						mb_mapping->tab_input_registers[config.start_address] = static_cast<uint16_t>(response);
 						mb_mapping->tab_registers[config.start_address] = static_cast<uint16_t>(response);
 					}
 					break;
 				case u16:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<uint16_t>();
+						const auto response = getJsonValue<uint16_t>(source, config);
 						mb_mapping->tab_input_registers[config.start_address] = response;
 						mb_mapping->tab_registers[config.start_address] = response;
 					}
 					break;
 				case i32:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<int32_t>();
+						const auto response = getJsonValue<int32_t>(source, config);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case u32:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<uint32_t>();
+						const auto response = getJsonValue<uint32_t>(source, config);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT32_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case i64:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<uint64_t>();
+						const auto response = getJsonValue<int64_t>(source, config);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case u64:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<int64_t>();
+						const auto response = getJsonValue<uint64_t>(source, config);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_input_registers, config.start_address, response);
 						MODBUS_SET_INT64_TO_INT16(mb_mapping->tab_registers, config.start_address, response);
 					}
 					break;
 				case float32:
 					{
-						const auto response = source.at(config.source).at(config.identifier).get<float>();
+						const auto response = getJsonValue<float>(source, config);
 						modbus_set_float_badc(response, mb_mapping->tab_input_registers + config.start_address);
 						modbus_set_float_badc(response, mb_mapping->tab_registers + config.start_address);
 					}
@@ -326,7 +442,7 @@ namespace {
 			config.map_error_displayed = false;
 		} catch (const std::exception& e) {
 			if (!config.map_error_displayed) {
-				spdlog::error("error setting map data for 0x{:04X} ({}.{}): {}", config.start_address, config.source, config.identifier, e.what());
+				spdlog::error("error setting map data for 0x{:04X}: {}", config.start_address, e.what());
 				config.map_error_displayed = true;
 			}
 
@@ -356,70 +472,6 @@ namespace {
 
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
-	}
-
-	auto getUID(const std::string& user_name) -> unsigned int {
-		struct passwd pwd{};
-		struct passwd *pwd_ptr{nullptr};
-
-		auto bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
-		if (bufsize < 0) {
-			bufsize = 16384;
-		}
-
-		thread_local std::vector<char> pwd_buffer(static_cast<size_t>(bufsize));
-
-		const auto retval = getpwnam_r(user_name.c_str(), &pwd, pwd_buffer.data(), pwd_buffer.size(), &pwd_ptr);
-
-		if (retval != 0) {
-			throw std::runtime_error(fmt::format("error getting uid: {}", bestsens::strerror_s(retval)));
-		}
-
-		return pwd_ptr->pw_uid;
-	}
-
-	auto getGID(const std::string& group_name) -> unsigned int {
-		struct group grp{};
-		struct group *grp_ptr{nullptr};
-
-		auto bufsize = sysconf(_SC_GETGR_R_SIZE_MAX);
-		if (bufsize < 0) {
-			bufsize = 16384;
-		}
-
-		thread_local std::vector<char> grp_buffer(static_cast<size_t>(bufsize));
-
-		const auto retval = getgrnam_r(group_name.c_str(), &grp, grp_buffer.data(), grp_buffer.size(), &grp_ptr);
-
-		if (retval != 0) {
-			throw std::runtime_error(fmt::format("error getting gid: {}", bestsens::strerror_s(retval)));
-		}
-
-		return grp_ptr->gr_gid;
-	}
-
-	auto dropPriviledges() -> bool {
-		try {
-			auto userid = getUID("bemos");
-			auto groupid = getGID("bemos_users");
-
-			if (setgid(groupid) != 0) {
-				throw std::runtime_error(fmt::format("setgid: Unable to drop group privileges: {}", strerror_s(errno)));
-			}
-
-			if (setuid(userid) != 0) {
-				throw std::runtime_error(fmt::format("setuid: Unable to drop user privileges: {}", strerror_s(errno)));
-			}
-
-			if (setuid(0) != -1) {
-				throw std::runtime_error("managed to regain root privileges");
-			}
-		} catch (const std::exception& e) {
-			spdlog::error("error dropping privileges: {}", e.what());
-			return false;
-		}
-
-		return true;
 	}
 
 	void dataAquisition(const std::string& conn_target, const std::string& conn_port, const std::string& username,
@@ -482,14 +534,16 @@ namespace {
 					json j;
 					socket.send_command("register_analysis", j, {{"name", "external_data"}});
 
-					if (coil_amount > 0)
+					if (coil_amount > 0) {
 						socket.send_command("register_analysis", j, {{"name", "active_coils"}});
+					}
 				}
 
 				while (running) {
 					data_timer.wait_on_tick();
-					if (!running)
+					if (!running) {
 						break;
+					}
 
 					if (reload_config) {
 						mb_map_config = updateConfiguration(socket, map_file, source_list, identifier_list);
@@ -565,7 +619,7 @@ namespace {
 							} catch (...) {}
 						}
 					}
-					
+
 					try {
 						json payload = {
 							{"name", "external_data"}
@@ -574,12 +628,14 @@ namespace {
 						if (ext_amount > 0) {
 							const std::lock_guard<std::mutex> lock(mb_mapping_access_mtx);
 
-							for (unsigned int i = 0; i < ext_amount * 2u; ++i) 
+							for (unsigned int i = 0; i < ext_amount * 2u; ++i) {
 								mb_mapping->tab_input_registers[100u + i] = mb_mapping->tab_registers[100u + i];
+							}
 
-							for (unsigned int i = 0; i < ext_amount; ++i)
+							for (unsigned int i = 0; i < ext_amount; ++i) {
 								payload["data"]["ext_" + std::to_string(i + 1u)] =
 									modbus_get_float_abcd(mb_mapping->tab_registers + (100u + (i * 2u)));
+							}
 						}
 
 						if (coil_amount > 0) {
@@ -593,10 +649,12 @@ namespace {
 								payload["data"][coil_name] = coil_state;
 
 								if (!coil_state) {
-									if (active_coils.at("data").contains(coil_name))
+									if (active_coils.contains("data") && active_coils.at("data").contains(coil_name)) {
 										active_coils.at("data").erase(coil_name);
+									}
 								} else {
-									if (!active_coils.at("data").contains(coil_name) ||
+									if (!(active_coils.contains("data") &&
+										  active_coils.at("data").contains(coil_name)) ||
 										ack.id == static_cast<int>(i) + 1) {
 										active_coils["data"][coil_name] = std::time(nullptr);
 									}
@@ -797,12 +855,14 @@ auto main(int argc, char **argv) -> int{
 
 	spdlog::info("listening on port {}", port);
 
-	if (getuid() == 0) {
+	if (system_helper::getUID() == 0) {
 		/* process is running as root, drop privileges */
 		spdlog::info("running as root, dropping privileges");
 
-		if (!dropPriviledges()) {
-			spdlog::critical("dropping of privileges failed!");
+		try {
+			system_helper::dropPriviledges();
+		} catch (const std::exception& e) {
+			spdlog::critical("dropping of privileges failed! ({})", e.what());
 			return EXIT_FAILURE;
 		}
 	}

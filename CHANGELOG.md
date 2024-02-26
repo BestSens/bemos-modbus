@@ -1,3 +1,11 @@
+## 2.2.0 (26.02.2024)
+- add support for `scale`, `offset` and `coerce_zero` configuration options
+- update nlohmann/json library to v3.11.3 (https://github.com/nlohmann/json/releases/tag/v3.11.3)
+- update fmt library to v10.2.1 (https://github.com/fmtlib/fmt/releases/tag/10.2.1)
+- update spdlog library to v1.13.0 (https://github.com/gabime/spdlog/releases/tag/v1.13.0)
+- update cxxopts library to v3.2.0 (https://github.com/jarro2783/cxxopts/releases/tag/v3.2.0)
+- add merged attributes
+
 ## 2.1.1 (11.01.2023)
 - automatically determine target gid & uid
 - update nlohmann/json library to v3.11.2 (https://github.com/nlohmann/json/releases/tag/v3.11.2)

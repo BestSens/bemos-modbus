@@ -1,5 +1,6 @@
 {
 	"files.associations": {
+		".clang-tidy": "plaintext",
 		"any": "cpp",
 		"array": "cpp",
 		"atomic": "cpp",
@@ -73,6 +74,14 @@
 		"typeindex": "cpp",
 		"typeinfo": "cpp",
 		"valarray": "cpp",
-		"variant": "cpp"
+		"variant": "cpp",
+		"strstream": "cpp",
+		"coroutine": "cpp",
+		"source_location": "cpp",
+		"format": "cpp",
+		"numbers": "cpp",
+		"semaphore": "cpp",
+		"shared_mutex": "cpp",
+		"*.ipp": "cpp"
 	}
 }
