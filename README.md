@@ -50,16 +50,6 @@ Adressbereich 40001-40099
 | 0107          | uint16        | ext_7					 | -       |
 | 0108          | uint16        | ext_8					 | -       |
 | 0109          | uint16        | ext_9					 | -       |
-| 0110          | uint16        | ext_10				 | -       |
-| 0111          | uint16        | ext_11				 | -       |
-| 0112          | uint16        | ext_12				 | -       |
-| 0113          | uint16        | ext_13				 | -       |
-| 0114          | uint16        | ext_14				 | -       |
-| 0115          | uint16        | ext_15				 | -       |
-| 0116          | uint16        | ext_16				 | -       |
-| 0117          | uint16        | ext_17				 | -       |
-| 0118          | uint16        | ext_18				 | -       |
-| 0119          | uint16        | ext_19				 | -       |
 
 ## Fehlerwerte
 Nicht gesetzte Register werden mit 0xFFFF initialisiert. Im Fehlerfall wird 0x8000 ausgegeben (0x7FC00000 (NaN) bei Floatwerten).
