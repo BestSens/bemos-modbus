@@ -1,4 +1,4 @@
-image: docker.bestsens.local/bone/docker-build-image:2.0.3
+image: docker.bestsens.local/bone/fedora-build-image
 
 variables:
     GIT_SUBMODULE_STRATEGY: recursive
