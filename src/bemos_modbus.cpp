@@ -50,23 +50,20 @@ namespace {
 
 	const json default_mb_register_map = {			
 		{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}, {"ignore oldness", true}},
-		{{"start address", 3}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
-		{{"start address", 5}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
-		{{"start address", 7}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
-		{{"start address", 9}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp0"}},
-		{{"start address", 11}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
-		{{"start address", 13}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean coe"}},
-		{{"start address", 15}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "kurtosis coe"}},
-		{{"start address", 17}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
-		{{"start address", 19}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "slip"}},
-		{{"start address", 100}, {"type", "float"}, {"source", "ks_data_0"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 102}, {"type", "float"}, {"source", "ks_data_1"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 104}, {"type", "float"}, {"source", "ks_data_2"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 106}, {"type", "float"}, {"source", "ks_data_3"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 108}, {"type", "float"}, {"source", "ks_data_4"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 110}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 112}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 114}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "effective value"}, {"ignore oldness", true}}
+		{{"start address", 3}, {"type", "i16"}, {"source", "pump_state"}, {"attribute", "pump_state"}},
+		{{"start address", 4}, {"type", "i16"}, {"source", "seal_state"}, {"attribute", "seal_state"}},
+		{{"start address", 5}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
+		{{"start address", 7}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
+		{{"start address", 9}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "kurtosis coe"}},
+		{{"start address", 11}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "reciprocal_variation"}},
+		{{"start address", 13}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "delta_kurtosis_coe"}},
+		{{"start address", 15}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "delta_reciprocal_variation"}},
+		{{"start address", 17}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean coe"}},
+		{{"start address", 19}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "stdev coe"}},
+		{{"start address", 21}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
+		{{"start address", 23}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
+		{{"start address", 25}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp0"}},
+		{{"start address", 27}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp1"}}
 	};
 
 	std::atomic<bool> running{true};

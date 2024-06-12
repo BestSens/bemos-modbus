@@ -1,4 +1,5 @@
 ## 2.2.1 (unreleased)
+- update default register map to better match current controller usage
 
 ## 2.2.0 (26.02.2024)
 - add support for `scale`, `offset` and `coerce_zero` configuration options
