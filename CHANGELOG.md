@@ -1,4 +1,4 @@
-## 2.3.0 (unreleased)
+## 2.3.0 (12.12.2024)
 - update default register map to better match current controller usage
 
 ## 2.2.0 (26.02.2024)
