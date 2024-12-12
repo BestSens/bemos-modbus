@@ -39,8 +39,8 @@ using namespace bestsens;
 using json = nlohmann::json;
 
 namespace {
-	constexpr auto mb_register_size = 1024;
-	constexpr auto nb_connection = 10;
+	constexpr auto mb_register_size = 1024u;
+	constexpr auto nb_connection = 10u;
 
 	constexpr auto login_user = "bemos-analysis";
 	constexpr auto login_hash = "82e324d4dac1dacf019e498d6045835b"
@@ -50,23 +50,24 @@ namespace {
 
 	const json default_mb_register_map = {			
 		{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}, {"ignore oldness", true}},
-		{{"start address", 3}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
-		{{"start address", 5}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
-		{{"start address", 7}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
-		{{"start address", 9}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp0"}},
-		{{"start address", 11}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "temp1"}},
-		{{"start address", 13}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "mean coe"}},
-		{{"start address", 15}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "kurtosis coe"}},
-		{{"start address", 17}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
-		{{"start address", 19}, {"type", "float"}, {"source", "channel_data"}, {"attribute", "slip"}},
-		{{"start address", 100}, {"type", "float"}, {"source", "ks_data_0"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 102}, {"type", "float"}, {"source", "ks_data_1"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 104}, {"type", "float"}, {"source", "ks_data_2"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 106}, {"type", "float"}, {"source", "ks_data_3"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 108}, {"type", "float"}, {"source", "ks_data_4"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 110}, {"type", "float"}, {"source", "ks_data_5"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 112}, {"type", "float"}, {"source", "ks_data_6"}, {"attribute", "effective value"}, {"ignore oldness", true}},
-		{{"start address", 114}, {"type", "float"}, {"source", "ks_data_7"}, {"attribute", "effective value"}, {"ignore oldness", true}}
+		{{"start address", 3}, {"type", "i16"}, {"source", "pump_state"}, {"attribute", "pump_state"}},
+		{{"start address", 4}, {"type", "i16"}, {"source", "seal_state"}, {"attribute", "seal_state"}},
+		{{"start address", 5}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
+		{{"start address", 7}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
+		{{"start address", 9}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "kurtosis coe"}},
+		{{"start address", 11}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "reciprocal_variation"}},
+		{{"start address", 13}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "delta_kurtosis_coe"}},
+		{{"start address", 15}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "delta_reciprocal_variation"}},
+		{{"start address", 17}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean coe"}},
+		{{"start address", 19}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "stdev coe"}},
+		{{"start address", 21}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
+		{{"start address", 23}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
+		{{"start address", 25}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp0"}},
+		{{"start address", 27}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp1"}},
+		{{"start address", 29}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean int"}},
+		{{"start address", 31}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "stdev int"}},
+		{{"start address", 33}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean int2"}},
+		{{"start address", 35}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "stdev int2"}}
 	};
 
 	std::atomic<bool> running{true};
@@ -290,8 +291,8 @@ namespace {
 				mb_map_config.push_back(temp);
 
 				for (const auto& measurement : temp.measurements) {
-					const auto it = std::find(source_list.begin(), source_list.end(), measurement.source);
-					const auto it2 = std::find(identifier_list.begin(), identifier_list.end(), measurement.identifier);
+					const auto it = std::ranges::find(source_list, measurement.source);
+					const auto it2 = std::ranges::find(identifier_list, measurement.identifier);
 
 					if (it == source_list.end()) {
 						source_list.push_back(measurement.source);
@@ -430,8 +431,8 @@ namespace {
 				case float32:
 					{
 						const auto response = getJsonValue<float>(source, config);
-						modbus_set_float_badc(response, mb_mapping->tab_input_registers + config.start_address);
-						modbus_set_float_badc(response, mb_mapping->tab_registers + config.start_address);
+						modbus_set_float_abcd(response, mb_mapping->tab_input_registers + config.start_address);
+						modbus_set_float_abcd(response, mb_mapping->tab_registers + config.start_address);
 					}
 					break;
 				default: throw std::runtime_error("type not found"); break;
@@ -464,9 +465,9 @@ namespace {
 					setErrornous(mb_mapping->tab_registers + config.start_address, 4);
 					break;
 				case float32:
-					const auto err = std::nanf("");
-					modbus_set_float_badc(err, mb_mapping->tab_input_registers + config.start_address);
-					modbus_set_float_badc(err, mb_mapping->tab_registers + config.start_address);
+					const auto err = std::numeric_limits<float>::quiet_NaN();
+					modbus_set_float_abcd(err, mb_mapping->tab_input_registers + config.start_address);
+					modbus_set_float_abcd(err, mb_mapping->tab_registers + config.start_address);
 					break;
 			}
 
@@ -799,12 +800,9 @@ auto main(int argc, char **argv) -> int{
 		}
 	}
 
-	if (coil_amount > mb_register_size) {
-		coil_amount = mb_register_size;
-	}
-	if (ext_amount > (mb_register_size - 100) / 2) {
-		ext_amount = (mb_register_size - 100) / 2;
-	}
+	coil_amount = std::min(coil_amount, mb_register_size);
+	static_assert(mb_register_size > 102, "mb_register_size must be greater than 102");
+	ext_amount = std::min(ext_amount, (mb_register_size - 100) / 2);
 
 	spdlog::info("starting bemos-modbus {}", appVersion());
 	spdlog::info("generating {} coils", coil_amount);

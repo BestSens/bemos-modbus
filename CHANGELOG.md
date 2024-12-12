@@ -1,3 +1,6 @@
+## 2.3.0 (12.12.2024)
+- update default register map to better match current controller usage
+
 ## 2.2.0 (26.02.2024)
 - add support for `scale`, `offset` and `coerce_zero` configuration options
 - update nlohmann/json library to v3.11.3 (https://github.com/nlohmann/json/releases/tag/v3.11.3)
