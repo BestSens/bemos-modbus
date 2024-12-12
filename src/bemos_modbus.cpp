@@ -291,8 +291,8 @@ namespace {
 				mb_map_config.push_back(temp);
 
 				for (const auto& measurement : temp.measurements) {
-					const auto it = std::find(source_list.begin(), source_list.end(), measurement.source);
-					const auto it2 = std::find(identifier_list.begin(), identifier_list.end(), measurement.identifier);
+					const auto it = std::ranges::find(source_list, measurement.source);
+					const auto it2 = std::ranges::find(identifier_list, measurement.identifier);
 
 					if (it == source_list.end()) {
 						source_list.push_back(measurement.source);
@@ -431,8 +431,8 @@ namespace {
 				case float32:
 					{
 						const auto response = getJsonValue<float>(source, config);
-						modbus_set_float_badc(response, mb_mapping->tab_input_registers + config.start_address);
-						modbus_set_float_badc(response, mb_mapping->tab_registers + config.start_address);
+						modbus_set_float_abcd(response, mb_mapping->tab_input_registers + config.start_address);
+						modbus_set_float_abcd(response, mb_mapping->tab_registers + config.start_address);
 					}
 					break;
 				default: throw std::runtime_error("type not found"); break;
@@ -465,9 +465,9 @@ namespace {
 					setErrornous(mb_mapping->tab_registers + config.start_address, 4);
 					break;
 				case float32:
-					const auto err = std::nanf("");
-					modbus_set_float_badc(err, mb_mapping->tab_input_registers + config.start_address);
-					modbus_set_float_badc(err, mb_mapping->tab_registers + config.start_address);
+					const auto err = std::numeric_limits<float>::quiet_NaN();
+					modbus_set_float_abcd(err, mb_mapping->tab_input_registers + config.start_address);
+					modbus_set_float_abcd(err, mb_mapping->tab_registers + config.start_address);
 					break;
 			}
 

@@ -6,12 +6,11 @@ Die Standardkonfiguration umfasst Register für Wälzlager- und Dichtungsanalyse
 
 ## Datentypen
 * Daten werden **Big-Endian** geordnet übertragen
-* Registerübergreifende Daten werden als **word swap** gesendet, jeweils mit der/den darauffolgenden Adresse(n) (siehe Lücken)
 * Fließkommazahlen werden nach dem **IEEE 754**-Standard erzeugt
 * die Adressierung ist **1-basierend**
 * Input- und Holding-Register zeigen auf den gleichen Speicherbereich
 
-Beispiel: `[ a b c d ] = [ c d ][ a b ]`
+Beispiel: `[ a b c d ] = [ a b ][ c d ]`
 
 ## Register
 Adressbereich 30001-30099
