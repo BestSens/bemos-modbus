@@ -17,23 +17,27 @@ Beispiel: `[ a b c d ] = [ c d ][ a b ]`
 Adressbereich 30001-30099
 Adressbereich 40001-40099
 
-| Start-Adresse | Datentyp      | Messwert                   | Einheit |
-| ------------: | :-----------: | -------------------------- | ------- |
-| 0001          | int32         | Unix-Zeitstempel           | s       |
-| 0003          | uint16        | Pumpenzustand              | -       |
-| 0004          | uint16        | Dichtungszustand           | -       |
-| 0005          | float32       | Temperatur                 | °C      |
-| 0007          | float32       | Wellendrehzahl             | rpm     |
-| 0009          | float32       | Kurtosis                   | -       |
-| 0011          | float32       | Reciprocal variation       | -       |
-| 0013          | float32       | delta Kurtosis             | -       |
-| 0015          | float32       | delta Reciprocal variation | -       |
-| 0017          | float32       | Mittelwert CoE             | ns      |
-| 0019          | float32       | Standardabweichung CoE     | ns      |
-| 0021          | float32       | Käfigdrehzahl              | rpm     |
-| 0023          | float32       | Druckwinkel                | °       |
-| 0025          | float32       | Temperatur X1              | °C      |
-| 0027          | float32       | Temperatur X2              | °C      |
+| Start-Adresse | Datentyp      | Messwert                      | Einheit |
+| ------------: | :-----------: | ----------------------------- | ------- |
+| 0001          | int32         | Unix-Zeitstempel              | s       |
+| 0003          | uint16        | Pumpenzustand                 | -       |
+| 0004          | uint16        | Dichtungszustand              | -       |
+| 0005          | float32       | Temperatur                    | °C      |
+| 0007          | float32       | Wellendrehzahl                | rpm     |
+| 0009          | float32       | Kurtosis                      | -       |
+| 0011          | float32       | Reciprocal variation          | -       |
+| 0013          | float32       | delta Kurtosis                | -       |
+| 0015          | float32       | delta Reciprocal variation    | -       |
+| 0017          | float32       | Mittelwert CoE                | ns      |
+| 0019          | float32       | Standardabweichung CoE        | ns      |
+| 0021          | float32       | Käfigdrehzahl                 | rpm     |
+| 0023          | float32       | Druckwinkel                   | °       |
+| 0025          | float32       | Temperatur X1                 | °C      |
+| 0027          | float32       | Temperatur X2                 | °C      |
+| 0029          | float32       | Mittelwert Integral 1         | Vns     |
+| 0031          | float32       | Standardabweichung Integral 1 | Vns     |
+| 0033          | float32       | Mittelwert Integral 2         | Vns     |
+| 0035          | float32       | Standardabweichung Integral 2 | Vns     |
 
 ## External Data
 Über den Registerbreich 40100-40120 können externe Daten in das System eingespielt werden. Diese sind im Scripteditor oder den Benutzerdefinierten Variablen als `external_data["..."]` verfügbar.

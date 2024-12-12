@@ -63,7 +63,11 @@ namespace {
 		{{"start address", 21}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
 		{{"start address", 23}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
 		{{"start address", 25}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp0"}},
-		{{"start address", 27}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp1"}}
+		{{"start address", 27}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp1"}},
+		{{"start address", 29}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean int"}},
+		{{"start address", 31}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "stdev int"}},
+		{{"start address", 33}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean int2"}},
+		{{"start address", 35}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "stdev int2"}}
 	};
 
 	std::atomic<bool> running{true};
