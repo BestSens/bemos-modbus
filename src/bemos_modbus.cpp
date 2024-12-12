@@ -39,8 +39,8 @@ using namespace bestsens;
 using json = nlohmann::json;
 
 namespace {
-	constexpr auto mb_register_size = 1024;
-	constexpr auto nb_connection = 10;
+	constexpr auto mb_register_size = 1024u;
+	constexpr auto nb_connection = 10u;
 
 	constexpr auto login_user = "bemos-analysis";
 	constexpr auto login_hash = "82e324d4dac1dacf019e498d6045835b"
@@ -800,12 +800,9 @@ auto main(int argc, char **argv) -> int{
 		}
 	}
 
-	if (coil_amount > mb_register_size) {
-		coil_amount = mb_register_size;
-	}
-	if (ext_amount > (mb_register_size - 100) / 2) {
-		ext_amount = (mb_register_size - 100) / 2;
-	}
+	coil_amount = std::min(coil_amount, mb_register_size);
+	static_assert(mb_register_size > 102, "mb_register_size must be greater than 102");
+	ext_amount = std::min(ext_amount, (mb_register_size - 100) / 2);
 
 	spdlog::info("starting bemos-modbus {}", appVersion());
 	spdlog::info("generating {} coils", coil_amount);
