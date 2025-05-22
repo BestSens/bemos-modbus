@@ -43,16 +43,16 @@ Adressbereich 40001-40099
 
 | Start-Adresse | Datentyp      | Messwert               | Einheit |
 | ------------: | :-----------: | ---------------------- | ------- |
-| 0100          | uint16        | ext_0					 | -       |
-| 0101          | uint16        | ext_1					 | -       |
-| 0102          | uint16        | ext_2					 | -       |
-| 0103          | uint16        | ext_3					 | -       |
-| 0104          | uint16        | ext_4					 | -       |
-| 0105          | uint16        | ext_5					 | -       |
-| 0106          | uint16        | ext_6					 | -       |
-| 0107          | uint16        | ext_7					 | -       |
-| 0108          | uint16        | ext_8					 | -       |
-| 0109          | uint16        | ext_9					 | -       |
+| 0100          | uint16        | ext_1					 | -       |
+| 0101          | uint16        | ext_2					 | -       |
+| 0102          | uint16        | ext_3					 | -       |
+| 0103          | uint16        | ext_4					 | -       |
+| 0104          | uint16        | ext_5					 | -       |
+| 0105          | uint16        | ext_6					 | -       |
+| 0106          | uint16        | ext_7					 | -       |
+| 0107          | uint16        | ext_8					 | -       |
+| 0108          | uint16        | ext_9					 | -       |
+| 0109          | uint16        | ext_10				 | -       |
 
 ## Fehlerwerte
 Nicht gesetzte Register werden mit 0xFFFF initialisiert. Im Fehlerfall wird 0x8000 ausgegeben (0x7FC00000 (NaN) bei Floatwerten).
