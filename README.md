@@ -19,8 +19,8 @@ Adressbereich 40001-40099
 | Start-Adresse | Datentyp      | Messwert                      | Einheit |
 | ------------: | :-----------: | ----------------------------- | ------- |
 | 0001          | int32         | Unix-Zeitstempel              | s       |
-| 0003          | uint16        | Pumpenzustand                 | -       |
-| 0004          | uint16        | Dichtungszustand              | -       |
+| 0003          | int16         | Pumpenzustand                 | -       |
+| 0004          | int16         | Dichtungszustand              | -       |
 | 0005          | float32       | Temperatur                    | °C      |
 | 0007          | float32       | Wellendrehzahl                | rpm     |
 | 0009          | float32       | Kurtosis                      | -       |
