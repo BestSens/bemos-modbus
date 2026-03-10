@@ -1,5 +1,6 @@
 ## 2.3.1 (unreleased)
 - allow to specify type of external data registers
+- update various libraries to their latest versions
 
 ## 2.3.0 (12.12.2024)
 - update default register map to better match current controller usage
