@@ -1,4 +1,6 @@
-## 2.3.1 (unreleased)
+## 2.3.2 (unreleased)
+
+## 2.3.1 (11.03.2026)
 - allow to specify type of external data registers
 - update various libraries to their latest versions
 
