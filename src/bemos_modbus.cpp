@@ -177,7 +177,7 @@ namespace {
 		}
 	}
 
-	auto parseType(std::string_view type) -> representation_type_t {
+	constexpr auto parseType(std::string_view type) -> representation_type_t {
 		if (type == "u16") {
 			return u16;
 		} else if (type == "i32") {
@@ -192,6 +192,42 @@ namespace {
 			return float32;
 		} else {
 			return i16;
+		}
+	}
+
+	constexpr auto representationTypeToStr(representation_type_t type) -> std::string_view {
+		switch (type) {
+		case u16:
+			return "u16";
+		case i32:
+			return "i32";
+		case u32:
+			return "u32";
+		case i64:
+			return "i64";
+		case u64:
+			return "u64";
+		case float32:
+			return "f32";
+		default:
+			return "i16";
+		}
+	}
+
+	constexpr auto getExtWidth(representation_type_t type) -> unsigned int {
+		switch (type) {
+		case i16:
+		case u16:
+			return 1;
+		case i32:
+		case u32:
+		case float32:
+			return 2;
+		case i64:
+		case u64:
+			return 4;
+		default:
+			throw std::runtime_error("type not found");
 		}
 	}
 
@@ -474,10 +510,79 @@ namespace {
 			mb_mapping->tab_input_bits[config.start_address] = 0;
 		}
 	}
+	
+	constexpr auto getValueU16(std::span<const uint16_t> start, uint16_t offset = 0) -> uint16_t {
+		if (start.size() <= offset) {
+			throw std::invalid_argument("out of bounds");
+		}
+
+		return start[offset];
+	}
+
+	constexpr auto getValueI16(std::span<const uint16_t> start, uint16_t offset = 0) -> int16_t {
+		uint16_t ival = getValueU16(start, offset);
+
+		int16_t val = 0;
+		std::memcpy(&val, &ival, sizeof(val));
+		
+		return val;
+	}
+
+	constexpr auto getValueU32(std::span<const uint16_t> start, uint16_t offset = 0) -> uint32_t {
+		uint32_t val = getValueU16(start, offset);
+		return (val << 16u) + getValueU16(start, offset + 1);
+	}
+
+
+	constexpr auto getValueI32(std::span<const uint16_t> start, uint16_t offset = 0) -> int32_t {
+		uint32_t ival = getValueU32(start, offset);
+		
+		int32_t val = 0;
+		std::memcpy(&val, &ival, sizeof(val));
+
+		return val;
+	}
+
+	constexpr auto getValueU64(std::span<const uint16_t> start, uint16_t offset = 0) -> uint64_t {
+		const uint64_t val = getValueU32(start, offset);
+		return (val << 32u) + getValueU32(start, offset + 2);
+	}
+
+
+	constexpr auto getValueI64(std::span<const uint16_t> start, uint16_t offset = 0) -> int64_t {
+		uint64_t ival = getValueU64(start, offset);
+		
+		int64_t val = 0;
+		std::memcpy(&val, &ival, sizeof(val));
+
+		return val;
+	}
+
+	template <std::integral T>
+	constexpr auto convertDoubleOrNan(T value) -> double {
+		if (value == std::numeric_limits<T>::max()) {
+			return std::numeric_limits<double>::quiet_NaN();
+		} else {
+			return static_cast<double>(value);
+		}
+	}
+
+	auto convertExtToDouble(std::span<const uint16_t> registers, representation_type_t type) -> double {
+		switch (type) {
+			case i16: return convertDoubleOrNan(getValueI16(registers));
+			case u16: return convertDoubleOrNan(getValueU16(registers));
+			case i32: return convertDoubleOrNan(getValueI32(registers));
+			case u32: return convertDoubleOrNan(getValueU32(registers));
+			case i64: return convertDoubleOrNan(getValueI64(registers));
+			case u64: return convertDoubleOrNan(getValueU64(registers));
+			case float32: return modbus_get_float_abcd(registers.data());
+			default: throw std::runtime_error("type not found"); break;
+		}
+	}
 
 	void dataAquisition(const std::string& conn_target, const std::string& conn_port, const std::string& username,
 						 const std::string& password, modbus_mapping_t* mb_mapping, const std::string& map_file,
-						 unsigned int coil_amount, unsigned int ext_amount) {
+						 unsigned int coil_amount, unsigned int ext_amount, representation_type_t ext_type) {
 		std::vector<std::string> source_list = {};
 		std::vector<std::string> identifier_list = {};
 		std::vector<mb_map_config_t> mb_map_config;
@@ -633,9 +738,12 @@ namespace {
 								mb_mapping->tab_input_registers[100u + i] = mb_mapping->tab_registers[100u + i];
 							}
 
+
+							const auto ext_width = getExtWidth(ext_type);
+
 							for (unsigned int i = 0; i < ext_amount; ++i) {
 								payload["data"]["ext_" + std::to_string(i + 1u)] =
-									modbus_get_float_abcd(mb_mapping->tab_registers + (100u + (i * 2u)));
+									convertExtToDouble({mb_mapping->tab_registers + (100u + (i * ext_width)), ext_width}, ext_type);
 							}
 						}
 
@@ -692,6 +800,8 @@ auto main(int argc, char **argv) -> int{
 	unsigned int coil_amount = 0;
 	unsigned int ext_amount = 0;
 
+	std::string ext_type_str = "f32";
+
 	std::string conn_target = "localhost";
 	std::string conn_port = "6450";
 	std::string username = login_user;
@@ -734,6 +844,7 @@ auto main(int argc, char **argv) -> int{
 			("t,timeout", "modbus tcp timeout in us", cxxopts::value<uint32_t>(mb_to_usec))
 			("coil_amount", "amount of coils injected to external_data", cxxopts::value<unsigned int>(coil_amount))
 			("ext_amount", "amount of ext values injected to external_data", cxxopts::value<unsigned int>(ext_amount))
+			("ext_type", "representation type for ext values (i16, u16, i32, u32, i64, u64, f32)", cxxopts::value<std::string>(ext_type_str)->default_value(ext_type_str))
 		;
 
 		try {
@@ -802,11 +913,15 @@ auto main(int argc, char **argv) -> int{
 
 	coil_amount = std::min(coil_amount, mb_register_size);
 	static_assert(mb_register_size > 102, "mb_register_size must be greater than 102");
-	ext_amount = std::min(ext_amount, (mb_register_size - 100) / 2);
+
+	const auto ext_type = parseType(ext_type_str);
+	const auto ext_width = getExtWidth(ext_type);
+
+	ext_amount = std::min(ext_amount, (mb_register_size - 100) / ext_width);
 
 	spdlog::info("starting bemos-modbus {}", appVersion());
 	spdlog::info("generating {} coils", coil_amount);
-	spdlog::info("generating {} ext values", ext_amount);
+	spdlog::info("generating {} ext values (type: {})", ext_amount, representationTypeToStr(ext_type));
 
 	/*
 	 * Test IEEE 754
@@ -867,7 +982,7 @@ auto main(int argc, char **argv) -> int{
 
 	/* spawn aquire thread */
 	std::thread aquire_inst(dataAquisition, std::ref(conn_target), std::ref(conn_port), std::ref(username),
-							std::ref(password), mb_mapping, map_file, coil_amount, ext_amount);
+							std::ref(password), mb_mapping, map_file, coil_amount, ext_amount, ext_type);
 
 	/* Deamonize */
 	if (daemon) {
