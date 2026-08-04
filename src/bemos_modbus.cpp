@@ -50,24 +50,19 @@ namespace {
 
 	const json default_mb_register_map = {			
 		{{"start address", 1}, {"type", "i32"}, {"source", "channel_data"}, {"attribute", "date"}, {"ignore oldness", true}},
-		{{"start address", 3}, {"type", "i16"}, {"source", "pump_state"}, {"attribute", "pump_state"}},
-		{{"start address", 4}, {"type", "i16"}, {"source", "seal_state"}, {"attribute", "seal_state"}},
-		{{"start address", 5}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
-		{{"start address", 7}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
-		{{"start address", 9}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "kurtosis coe"}},
-		{{"start address", 11}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "reciprocal_variation"}},
-		{{"start address", 13}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "delta_kurtosis_coe"}},
-		{{"start address", 15}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "delta_reciprocal_variation"}},
-		{{"start address", 17}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean coe"}},
-		{{"start address", 19}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "stdev coe"}},
-		{{"start address", 21}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
+		{{"start address", 3}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "cage speed"}},
+		{{"start address", 5}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "shaft speed"}},
+		{{"start address", 7}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp mean"}},
+		{{"start address", 9}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "stoerlevel"}},
+		{{"start address", 11}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean rt"}},
+		{{"start address", 13}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean amp"}},
+		{{"start address", 15}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "rms rt"}},
+		{{"start address", 17}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "rms amp"}},
+		{{"start address", 19}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp0"}},
+		{{"start address", 21}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp1"}},
 		{{"start address", 23}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "druckwinkel"}},
-		{{"start address", 25}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp0"}},
-		{{"start address", 27}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "temp1"}},
-		{{"start address", 29}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean int"}},
-		{{"start address", 31}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "stdev int"}},
-		{{"start address", 33}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "mean int2"}},
-		{{"start address", 35}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "stdev int2"}}
+		{{"start address", 25}, {"type", "f32"}, {"source", "channel_data"}, {"attribute", "axial force"}},
+		{{"start address", 27}, {"type", "f32"}, {"source", "ks_data"}, {"attribute", "effective value"}}
 	};
 
 	std::atomic<bool> running{true};
@@ -745,6 +740,22 @@ namespace {
 								payload["data"]["ext_" + std::to_string(i + 1u)] =
 									convertExtToDouble({mb_mapping->tab_registers + (100u + (i * ext_width)), ext_width}, ext_type);
 							}
+
+							auto getValueFloat = [](uint16_t data_0, uint16_t data_1) {
+								uint32_t data_32 = data_0 + (data_1 << 16);
+								return *reinterpret_cast<float*>(&data_32);
+							};
+
+							auto getValueInt16 = [](uint16_t data_0) {
+								uint16_t data_16 = data_0;
+								return *reinterpret_cast<int16_t*>(&data_16);
+							};
+
+							payload["data"]["To"] = static_cast<double>(mb_mapping->tab_registers[100]) / 100;
+							payload["data"]["Ts"] = static_cast<double>(mb_mapping->tab_registers[101]) / 100;
+							payload["data"]["n"] = getValueFloat(htons(mb_mapping->tab_registers[102]), htons(mb_mapping->tab_registers[103]));
+							payload["data"]["M"] = static_cast<double>(getValueInt16(htons(mb_mapping->tab_registers[104]))) / 1400.0 * 27.0;
+							payload["data"]["Ti"] = static_cast<double>(mb_mapping->tab_registers[106]) / 100;
 						}
 
 						if (coil_amount > 0) {
